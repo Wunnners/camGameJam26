@@ -1,6 +1,18 @@
 import pygame
 import math
 from game_config import *
+from enemy import *
+
+def handle_door_interact(player, doors):
+    """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
+    toggled_indices = []
+    for i, door in enumerate(doors):
+        dist = math.hypot(player.rect.centerx - door.center[0], 
+                          player.rect.centery - door.center[1])
+        if dist < INTERACT_RANGE:
+            door.interact(player.rect)
+            toggled_indices.append(i)
+    return toggled_indices
 
 def handle_door_interact(player, doors):
     """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -61,7 +73,13 @@ class Door:
 class Player:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x, y, 40, 40)
+        self.health = Health(100, self.rect)
+        self.flash_timer = -100000
 
+    def take_damage(self, amount):
+        self.health.take_damage(amount)
+        self.flash_timer = pygame.time.get_ticks()
+    
     def move(self, walls, doors):
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
@@ -77,23 +95,13 @@ class Player:
 
         # Obstacles = Walls + Closed Doors
         obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
-
-        # X movement & collision
-        self.rect.x += dx * PLAYER_SPEED
-        for obj_rect in obstacles:
-            if self.rect.colliderect(obj_rect):
-                if dx > 0: self.rect.right = obj_rect.left
-                if dx < 0: self.rect.left = obj_rect.right
-
-        # Y movement & collision
-        self.rect.y += dy * PLAYER_SPEED
-        for obj_rect in obstacles:
-            if self.rect.colliderect(obj_rect):
-                if dy > 0: self.rect.bottom = obj_rect.top
-                if dy < 0: self.rect.top = obj_rect.bottom
+        move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
-        pygame.draw.rect(surface, (50, 150, 255), camera.apply(self.rect))
+        now = pygame.time.get_ticks()
+        color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
+        pygame.draw.rect(surface, color, camera.apply(self.rect))
+        self.health.draw(surface, camera)
 
 def main():
     pygame.init()
@@ -107,6 +115,7 @@ def main():
         walls = []
         doors = []
         player = None
+        enemies = []
         frame = 0
         # Load level and determine door orientation automatically
         for r, row in enumerate(LEVEL_MAP):
@@ -122,11 +131,16 @@ def main():
                         if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
+                elif char == "G":
+                    enemies.append(Grunt(x, y))
                 elif char == "P":
                     player = Player(x, y)
 
         if not player: player = Player(100, 100)
         camera = Camera()
+    if not player: 
+        player = Player(100, 100)
+    camera = Camera()
 
         reset = False
         while not reset:
@@ -148,7 +162,7 @@ def main():
             camera.update(player)
 
             screen.fill(BG_COLOR)
-            
+        
             for wall in walls: wall.draw(screen, camera)
             for door in doors: door.draw(screen, camera)
             player.draw(screen, camera)
