@@ -98,9 +98,9 @@ class Ghost:
         if self.sequence["cShoot"] and frame in self.sequence["cShoot"]:
             cannon = cannons[self.sequence["cShoot"][frame][0]]
             cannon.projectiles.append(Projectile(cannon.rect.centerx, cannon.rect.centery, self.sequence["cShoot"][frame][1]))
-        for button in self.buttons:
-            if self.rect.colliderect(button.rect):
-                button.press()
+        button_indices = self.rect.collidelistall(self.buttons)
+        for i in button_indices:
+            self.buttons[i].press()
 
 class Player:
     def __init__(self, x, y, boundary, doors, cannons, gates):
@@ -172,9 +172,9 @@ class Player:
         [d.rect for d in self.doors if not d.is_open] + \
         [g.rect for g in self.gates if not g.is_open]
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
-        for button in buttons:
-            if self.rect.colliderect(button.rect):
-                button.press()
+        button_indices = self.rect.collidelistall(buttons)
+        for i in button_indices:
+            buttons[i].press()
     
 
     def draw(self, surface, camera):
@@ -268,7 +268,7 @@ def main():
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
-                        history["interactions"][frame] = player.handle_door_interact()
+                        history["doors"][frame] = player.handle_door_interact()
                         # Interact with Buttons
 
                     if event.key == pygame.K_m:
