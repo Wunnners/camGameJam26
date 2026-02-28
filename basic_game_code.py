@@ -4,6 +4,34 @@ from game_config import *
 from enemy import *
 from cannon import Cannon
 
+# --- UTILITY ---
+def move_with_collision(rect, dx, dy, obstacles):
+    # Handle X movement
+    rect.x += dx
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dx > 0: rect.right = wall.left
+            if dx < 0: rect.left = wall.right
+
+    # Handle Y movement
+    rect.y += dy
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dy > 0: rect.bottom = wall.top
+            if dy < 0: rect.top = wall.bottom
+
+def handle_door_interact(player, doors):
+    """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
+    toggled_indices = []
+    for i, door in enumerate(doors):
+        dist = math.hypot(player.rect.centerx - door.center[0], 
+                          player.rect.centery - door.center[1])
+        if dist < INTERACT_RANGE:
+            door.interact(player.rect)
+            toggled_indices.append(i)
+    return toggled_indices
+
+# --- CLASSES ---
 class Camera:
     def __init__(self):
         self.offset = pygame.Vector2(0, 0)
@@ -76,8 +104,7 @@ class Player:
                 self.rect.center = closest_cannon.rect.center
 
     def move(self):
-        if self.mounted_cannon:
-            return
+        if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
         if keys[pygame.K_LEFT]:  dx -= 1
@@ -93,77 +120,92 @@ class Player:
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
-        if self.mounted_cannon: 
-            return 
+        if self.mounted_cannon: return 
         now = pygame.time.get_ticks()
         color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
         pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
 
+# --- MAIN ---
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Top Down Melee & Cannon Engine")
     clock = pygame.time.Clock()
-
-    walls, doors, enemies, cannons, projectiles = [], [], [], [], []
-    player = None
-    player_start_pos = (100, 100)
-
-    for r, row in enumerate(LEVEL_MAP):
-        for c, char in enumerate(row):
-            x, y = c * TILE_SIZE, r * TILE_SIZE
-            if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
-            elif char == "G": enemies.append(Grunt(x, y))
-            elif char == "T": cannons.append(Cannon(x, y))
-            elif char == "P": player_start_pos = (x, y)
-            elif char == "D":
-                orientation = "vertical"
-                if 0 < c < len(row) - 1:
-                    if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
-                        orientation = "horizontal"
-                doors.append(Door(x, y, orientation))
-
-    player = Player(player_start_pos[0], player_start_pos[1], walls, doors, cannons)
-    camera = Camera()
-
+    
     running = True
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_e: # Door interaction logic
-                    pass 
-                if event.key == pygame.K_m:
-                    player.interact_cannon()
+        # Reset level state for every 'r' reset
+        history = {"interactions": {}, "locations": {}}
+        walls, doors, enemies, cannons = [], [], [], []
+        player = None
+        frame = 0
+        
+        # Load Level
+        for r, row in enumerate(LEVEL_MAP):
+            for c, char in enumerate(row):
+                x, y = c * TILE_SIZE, r * TILE_SIZE
+                if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                elif char == "G": enemies.append(Grunt(x, y))
+                elif char == "T": cannons.append(Cannon(x, y))
+                elif char == "P": player_start_pos = (x, y)
+                elif char == "D":
+                    orientation = "vertical"
+                    if 0 < c < len(row) - 1:
+                        if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
+                            orientation = "horizontal"
+                    doors.append(Door(x, y, orientation))
 
-        # --- UPDATE ---
-        player.move()
-        camera.update(player)
+        player = Player(player_start_pos[0], player_start_pos[1], walls, doors, cannons)
+        camera = Camera()
 
-        # Get shared obstacles for the cannons to use for their projectiles
-        obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
-
-        for c in cannons:
-            # Cannon handles its own projectiles and enemy damage internally
-            c.update(camera, obstacles, enemies)
-
-        # If mounted, the player triggers the shoot function
-        if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
-            player.mounted_cannon.shoot()
-
-        for e in enemies[:]:
-            e.update(player, walls, doors)
-            if e.health.is_dead: enemies.remove(e)
-
-        # --- DRAW ---
-        screen.fill(BG_COLOR)
-        for obj in walls + doors + enemies + cannons: # Projectiles drawn via cannon.draw()
-            obj.draw(screen, camera)
+        reset = False
+        while not reset and running:
+            frame += 1
+            if frame % LOCATION_INTERVAL == 0:
+                history["locations"][frame] = (player.rect.x, player.rect.y)
             
-        player.draw(screen, camera)
+            # --- EVENTS ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    reset = True
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        reset = True
+                    if event.key == pygame.K_e:
+                        history["interactions"][frame] = handle_door_interact(player, doors)
+                    if event.key == pygame.K_m:
+                        player.interact_cannon()
 
-        pygame.display.flip()
-        clock.tick(FPS)
+            # --- UPDATE ---
+            player.move()
+            camera.update(player)
+
+            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
+            
+            for c in cannons:
+                c.update(camera, obstacles, enemies)
+
+            if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
+                player.mounted_cannon.shoot()
+
+            for e in enemies[:]:
+                e.update(player, walls, doors)
+                if e.health.is_dead: enemies.remove(e)
+
+            # --- DRAW ---
+            screen.fill(BG_COLOR)
+            for obj in walls + doors + enemies + cannons:
+                obj.draw(screen, camera)
+            player.draw(screen, camera)
+
+            pygame.display.flip()
+            clock.tick(FPS)
+            
+        print(f"Session History: {history}")
+        
+    pygame.quit()
 
 if __name__ == "__main__":
     main()

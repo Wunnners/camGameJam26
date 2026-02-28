@@ -8,5 +8,6 @@ TILE_SIZE = 50
 DOOR_COLOR = (150, 75, 0)
 DOOR_OPEN_COLOR = (80, 50, 20)
 INTERACT_RANGE = 60
+LOCATION_INTERVAL = 10 # Record player location every LOCATION_INTERVAL frames for replay
 with open("map_export.txt", "r") as f:
     LEVEL_MAP = [line.strip() for line in f.readlines()]
