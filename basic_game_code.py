@@ -2,6 +2,17 @@ import pygame
 import math
 from game_config import *
 
+def handle_door_interact(player, doors):
+    """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
+    toggled_indices = []
+    for i, door in enumerate(doors):
+        dist = math.hypot(player.rect.centerx - door.center[0], 
+                          player.rect.centery - door.center[1])
+        if dist < INTERACT_RANGE:
+            door.interact(player.rect)
+            toggled_indices.append(i)
+    return toggled_indices
+
 class Camera:
     def __init__(self):
         self.offset = pygame.Vector2(0, 0)
@@ -89,57 +100,62 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Top Down Door Engine")
     clock = pygame.time.Clock()
-
-    walls = []
-    doors = []
-    player = None
-
-    # Load level and determine door orientation automatically
-    for r, row in enumerate(LEVEL_MAP):
-        for c, char in enumerate(row):
-            x, y = c * TILE_SIZE, r * TILE_SIZE
-            if char == "W":
-                walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
-            elif char == "D":
-                # If there are walls to the left and right, it's a horizontal door
-                # Otherwise, default to vertical
-                orientation = "vertical"
-                if 0 < c < len(row) - 1:
-                    if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
-                        orientation = "horizontal"
-                doors.append(Door(x, y, orientation))
-            elif char == "P":
-                player = Player(x, y)
-
-    if not player: player = Player(100, 100)
-    camera = Camera()
-
     running = True
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+        history = {"interactions": {}, # interactions: frame -> list of door indices toggled
+                   "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
+        walls = []
+        doors = []
+        player = None
+        frame = 0
+        # Load level and determine door orientation automatically
+        for r, row in enumerate(LEVEL_MAP):
+            for c, char in enumerate(row):
+                x, y = c * TILE_SIZE, r * TILE_SIZE
+                if char == "W":
+                    walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                elif char == "D":
+                    # If there are walls to the left and right, it's a horizontal door
+                    # Otherwise, default to vertical
+                    orientation = "vertical"
+                    if 0 < c < len(row) - 1:
+                        if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
+                            orientation = "horizontal"
+                    doors.append(Door(x, y, orientation))
+                elif char == "P":
+                    player = Player(x, y)
+
+        if not player: player = Player(100, 100)
+        camera = Camera()
+
+        reset = False
+        while not reset:
+            frame += 1
+            if frame % LOCATION_INTERVAL == 0:
+                history["locations"][frame] = (player.rect.x, player.rect.y)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    reset = True
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        reset = True
+                    if event.key == pygame.K_e:
+                        history["interactions"][frame] = handle_door_interact(player,doors)
+
+            player.move(walls, doors)
+            camera.update(player)
+
+            screen.fill(BG_COLOR)
             
-            # Interact with 'E'
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_e:
-                    for door in doors:
-                        dist = math.hypot(player.rect.centerx - door.center[0], 
-                                          player.rect.centery - door.center[1])
-                        if dist < INTERACT_RANGE:
-                            door.interact(player.rect)
+            for wall in walls: wall.draw(screen, camera)
+            for door in doors: door.draw(screen, camera)
+            player.draw(screen, camera)
 
-        player.move(walls, doors)
-        camera.update(player)
-
-        screen.fill(BG_COLOR)
-        
-        for wall in walls: wall.draw(screen, camera)
-        for door in doors: door.draw(screen, camera)
-        player.draw(screen, camera)
-
-        pygame.display.flip()
-        clock.tick(FPS)
+            pygame.display.flip()
+            clock.tick(FPS)
+    print(history)
     pygame.quit()
 
 if __name__ == "__main__":
