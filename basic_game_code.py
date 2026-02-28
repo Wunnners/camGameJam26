@@ -268,7 +268,7 @@ def main():
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
-                        history["interactions"][frame] = player.handle_door_interact()
+                        history["doors"][frame] = player.handle_door_interact()
                         # Interact with Buttons
 
                     if event.key == pygame.K_m:
