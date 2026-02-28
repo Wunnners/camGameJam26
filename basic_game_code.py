@@ -1,6 +1,8 @@
 import pygame
 import math
 from game_config import *
+from reset_dialogue import save_menu
+
 from enemy import *
 from cannon import Cannon
 
@@ -73,6 +75,14 @@ class Door:
         color = DOOR_OPEN_COLOR if self.is_open else DOOR_COLOR
         pygame.draw.rect(surface, color, camera.apply(self.rect))
 
+class Ghost:
+    def __init__(self,x,y):
+        self.rect = pygame.Rect(x,y,40,40)
+    
+    def draw(self, surface, camera):
+        color = (255, 0, 255)
+        pygame.draw.rect(surface, color, camera.apply(self.rect))
+
 class Player:
     def __init__(self, x, y, boundary, doors, cannons):
         self.rect = pygame.Rect(x, y, 40, 40)
@@ -136,11 +146,21 @@ def main():
     clock = pygame.time.Clock()
     
     running = True
+    saved_slots = [None,None]
+    history = None
     while running:
-        # Reset level state for every 'r' reset
-        history = {"interactions": {}, "locations": {}}
-        walls, waters, doors, enemies, cannons = [], [], [], [], []
+        if history:
+            save_menu(screen,history,saved_slots)
+        history = {"interactions": {}, # interactions: frame -> list of door indices toggled
+                   "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
+        walls = []
+        doors = []
+        waters = []
+        cannons = []
         player = None
+        seq1 = None
+        seq2 = None
+        enemies = []
         frame = 0
         
         # Load Level
@@ -159,13 +179,36 @@ def main():
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
 
-        player = Player(player_start_pos[0], player_start_pos[1], walls + waters, doors, cannons)
+        if not player: 
+            player = Player(100, 100)
+        if saved_slots[0]:
+            seq1 = saved_slots[0]
+            ghost1 = Ghost(*saved_slots[0]["locations"][1])
+        if saved_slots[1]:
+            seq2 = saved_slots[1]
+            ghost2 = Ghost(*saved_slots[1]["locations"][1])
         camera = Camera()
 
         reset = False
         while not reset and running:
             frame += 1
-            if frame % LOCATION_INTERVAL == 0:
+            if seq1:
+                if seq1["interactions"] and frame in seq1["interactions"]:
+                    for index in seq1["interactions"][frame]:
+                        door = doors[index]
+                        door.interact(player.rect)
+                if seq1["locations"] and frame in seq1["locations"]:
+                    ghost1.rect.topleft = seq1["locations"][frame]
+
+            if seq2:
+                if seq2["interactions"] and frame in seq2["interactions"]:
+                    for index in seq2["interactions"][frame]:
+                        door = doors[index]
+                        door.interact(player.rect) # Ghost interacts with the door, but it still toggles)
+                if seq2["locations"] and frame in seq2["locations"]:
+                    ghost2.rect.topleft = seq2["locations"][frame]
+
+            if frame % LOCATION_INTERVAL == 0 or frame == 1:
                 history["locations"][frame] = (player.rect.x, player.rect.y)
             
             # --- EVENTS ---
@@ -202,7 +245,10 @@ def main():
             for obj in walls + waters + doors + enemies + cannons:
                 obj.draw(screen, camera)
             player.draw(screen, camera)
-
+            if seq1:
+                ghost1.draw(screen, camera)
+            if seq2:
+                ghost2.draw(screen, camera)
             pygame.display.flip()
             clock.tick(FPS)
             
