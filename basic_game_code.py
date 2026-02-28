@@ -1,6 +1,7 @@
 import pygame
 import math
 from game_config import *
+
 from enemy import *
 
 def handle_door_interact(player, doors):
@@ -136,11 +137,9 @@ def main():
                 elif char == "P":
                     player = Player(x, y)
 
-        if not player: player = Player(100, 100)
+        if not player: 
+            player = Player(100, 100)
         camera = Camera()
-    if not player: 
-        player = Player(100, 100)
-    camera = Camera()
 
         reset = False
         while not reset:
