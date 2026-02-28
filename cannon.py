@@ -40,7 +40,9 @@ class Cannon:
         self.angle = 0
         self.last_shot = 0
         self.shoot_cooldown = 400 
-        self.projectiles = [] 
+        self.projectiles = []
+        self.busy = False
+        self.index = None
 
     def update(self, camera, obstacles, enemies):
         if self.mounted:
@@ -62,6 +64,9 @@ class Cannon:
             # FIX: Added speed and damage arguments (or used defaults from __init__)
             self.projectiles.append(Projectile(self.rect.centerx, self.rect.centery, self.angle))
             self.last_shot = now
+            return(self.index,self.angle)
+        else:
+            return None
 
     def draw(self, surface, camera):
         # Draw the base

@@ -4,7 +4,7 @@ from game_config import *
 from reset_dialogue import save_menu
 
 from enemy import *
-from cannon import Cannon
+from cannon import *
 
 # --- UTILITY ---
 def move_with_collision(rect, dx, dy, obstacles):
@@ -21,17 +21,6 @@ def move_with_collision(rect, dx, dy, obstacles):
         if rect.colliderect(wall):
             if dy > 0: rect.bottom = wall.top
             if dy < 0: rect.top = wall.bottom
-
-def handle_door_interact(player, doors):
-    """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
-    toggled_indices = []
-    for i, door in enumerate(doors):
-        dist = math.hypot(player.rect.centerx - door.center[0], 
-                          player.rect.centery - door.center[1])
-        if dist < INTERACT_RANGE:
-            door.interact(player.rect)
-            toggled_indices.append(i)
-    return toggled_indices
 
 # --- CLASSES ---
 class Camera:
@@ -74,12 +63,38 @@ class Door:
         pygame.draw.rect(surface, color, camera.apply(self.rect))
 
 class Ghost:
-    def __init__(self,x,y):
+    def __init__(self,x,y,sequence):
         self.rect = pygame.Rect(x,y,40,40)
+        self.disabled = False
+        self.sequence = sequence
     
     def draw(self, surface, camera):
+        if self.disabled:
+            return
         color = (255, 0, 255)
         pygame.draw.rect(surface, color, camera.apply(self.rect))
+
+    def toggle_draw(self):
+        self.disabled = not self.disabled
+    
+    def update(self, frame, doors, cannons, player_rect):
+        # Handle doors
+        if self.sequence["doors"] and frame in self.sequence["doors"]:
+            for index in self.sequence["doors"][frame]:
+                doors[index].interact(player_rect)
+        
+        # Handle locations
+        if self.sequence["locations"] and frame in self.sequence["locations"]:
+            self.rect.topleft = self.sequence["locations"][frame]
+            
+        # Handle cannons
+        if self.sequence["cannons"] and frame in self.sequence["cannons"]:
+            self.toggle_draw()
+            cannon_index = self.sequence["cannons"][frame]
+            cannons[cannon_index].busy = not cannons[cannon_index].busy
+        if self.sequence["cShoot"] and frame in self.sequence["cShoot"]:
+            cannon = cannons[self.sequence["cShoot"][frame][0]]
+            cannon.projectiles.append(Projectile(cannon.rect.centerx, cannon.rect.centery, self.sequence["cShoot"][frame][1]))
 
 class Player:
     def __init__(self, x, y, walls, doors, cannons):
@@ -95,23 +110,43 @@ class Player:
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
     
+    def handle_door_interact(self):
+        """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
+        toggled_indices = []
+        for i, door in enumerate(self.doors):
+            dist = math.hypot(self.rect.centerx - door.center[0], 
+                            self.rect.centery - door.center[1])
+            if dist < INTERACT_RANGE:
+                door.interact(self.rect)
+                toggled_indices.append(i)
+        return toggled_indices
+    
     def interact_cannon(self):
+        ind = None
         if self.mounted_cannon:
+            ind = self.mounted_cannon.index
+            self.mounted_cannon.busy = False
             self.mounted_cannon.mounted = False
             self.mounted_cannon = None
         else:
             closest_cannon = None
             min_dist = INTERACT_RANGE
-            for cannon in self.cannons:
+            for i, cannon in enumerate(self.cannons):
+                if cannon.busy:
+                    continue
                 dist = math.hypot(self.rect.centerx - cannon.rect.centerx, 
                                   self.rect.centery - cannon.rect.centery)
                 if dist < min_dist:
                     min_dist = dist
                     closest_cannon = cannon
+                    closest_cannon_index = i
             if closest_cannon:
                 self.mounted_cannon = closest_cannon
                 self.mounted_cannon.mounted = True
                 self.rect.center = closest_cannon.rect.center
+                self.mounted_cannon.busy = True
+                ind = self.mounted_cannon.index
+        return(ind)
 
     def move(self):
         if self.mounted_cannon: return
@@ -149,7 +184,9 @@ def main():
     while running:
         if history:
             save_menu(screen,history,saved_slots)
-        history = {"interactions": {}, # interactions: frame -> list of door indices toggled
+        history = {"doors": {}, # doors: frame -> list of door indices toggled
+                   "cShoot": {}, # cShoot: frame -> (cannon index, angle) for every cannon shot
+                   "cannons": {}, # cannon: frame -> cannon index interacted with (or None)
                    "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
         walls = []
         doors = []
@@ -158,6 +195,7 @@ def main():
         seq2 = None
         enemies = []
         frame = 0
+        cannons = []
         
         # Load Level
         for r, row in enumerate(LEVEL_MAP):
@@ -165,7 +203,10 @@ def main():
                 x, y = c * TILE_SIZE, r * TILE_SIZE
                 if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
                 elif char == "G": enemies.append(Grunt(x, y))
-                elif char == "T": cannons.append(Cannon(x, y))
+                elif char == "T": 
+                    cannon = Cannon(x,y)
+                    cannon.index = len(cannons) # Store the index of this cannon for replay purposes
+                    cannons.append(cannon)
                 elif char == "P": player_start_pos = (x, y)
                 elif char == "D":
                     orientation = "vertical"
@@ -175,33 +216,22 @@ def main():
                     doors.append(Door(x, y, orientation))
 
         if not player: 
-            player = Player(100, 100)
+            player = Player(100, 100, walls, doors, cannons)
+        ghost1 = None
+        ghost2 = None
+        
         if saved_slots[0]:
-            seq1 = saved_slots[0]
-            ghost1 = Ghost(*saved_slots[0]["locations"][1])
+            ghost1 = Ghost(*saved_slots[0]["locations"][1], saved_slots[0])
+            
         if saved_slots[1]:
-            seq2 = saved_slots[1]
-            ghost2 = Ghost(*saved_slots[1]["locations"][1])
+            ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1])
         camera = Camera()
 
         reset = False
         while not reset and running:
             frame += 1
-            if seq1:
-                if seq1["interactions"] and frame in seq1["interactions"]:
-                    for index in seq1["interactions"][frame]:
-                        door = doors[index]
-                        door.interact(player.rect)
-                if seq1["locations"] and frame in seq1["locations"]:
-                    ghost1.rect.topleft = seq1["locations"][frame]
-
-            if seq2:
-                if seq2["interactions"] and frame in seq2["interactions"]:
-                    for index in seq2["interactions"][frame]:
-                        door = doors[index]
-                        door.interact(player.rect) # Ghost interacts with the door, but it still toggles)
-                if seq2["locations"] and frame in seq2["locations"]:
-                    ghost2.rect.topleft = seq2["locations"][frame]
+            if ghost1: ghost1.update(frame, doors, cannons, player.rect) #note, update doesn't draw the ghost, that is further down
+            if ghost2: ghost2.update(frame, doors, cannons, player.rect)
 
             if frame % LOCATION_INTERVAL == 0 or frame == 1:
                 history["locations"][frame] = (player.rect.x, player.rect.y)
@@ -214,10 +244,13 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         reset = True
+                        continue
                     if event.key == pygame.K_e:
-                        history["interactions"][frame] = handle_door_interact(player, doors)
+                        history["doors"][frame] = player.handle_door_interact()
                     if event.key == pygame.K_m:
-                        player.interact_cannon()
+                        interacted_cannon_index = player.interact_cannon()
+                        if interacted_cannon_index is not None:
+                            history["cannons"][frame] = interacted_cannon_index
 
             # --- UPDATE ---
             player.move()
@@ -229,7 +262,9 @@ def main():
                 c.update(camera, obstacles, enemies)
 
             if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
-                player.mounted_cannon.shoot()
+                val = player.mounted_cannon.shoot() #val = cannon_index,angle tuple or None
+                if val:
+                    history["cShoot"][frame] = val
 
             for e in enemies[:]:
                 e.update(player, walls, doors)
@@ -240,9 +275,9 @@ def main():
             for obj in walls + doors + enemies + cannons:
                 obj.draw(screen, camera)
             player.draw(screen, camera)
-            if seq1:
+            if ghost1:
                 ghost1.draw(screen, camera)
-            if seq2:
+            if ghost2:
                 ghost2.draw(screen, camera)
             pygame.display.flip()
             clock.tick(FPS)
