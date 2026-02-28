@@ -4,19 +4,18 @@ from config import *
 
 class Camera:
     def __init__(self, width, height):
-        self.camera = pygame.Rect(0, 0, width, height)
-        self.width = width
-        self.height = height
+        # We store the offset as a simple tuple or vector
+        self.offset = pygame.Vector2(0, 0)
 
-    def apply(self, entity):
-        # Shift the entity's rect by the camera's negative position
-        return entity.rect.move(self.camera.topleft)
+    def apply(self, target_rect):
+        # Move the world-space rect by our camera offset
+        return target_rect.move(self.offset)
 
     def update(self, target):
-        # Calculate offset to keep target in the center
+        # Center the camera on the target (player)
         x = -target.rect.centerx + int(SCREEN_WIDTH / 2)
         y = -target.rect.centery + int(SCREEN_HEIGHT / 2)
-        self.camera.topleft = (x, y)
+        self.offset = (x, y)
 
 class Player:
     def __init__(self, x, y):
@@ -30,19 +29,20 @@ class Player:
         if keys[pygame.K_UP]:    dy -= 1
         if keys[pygame.K_DOWN]:  dy += 1
 
+        # Normalization so diagonal movement isn't faster
         if dx != 0 and dy != 0:
             factor = 1 / math.sqrt(2)
             dx *= factor
             dy *= factor
 
-        # X movement
+        # X movement & collision
         self.rect.x += dx * PLAYER_SPEED
         for wall in walls:
             if self.rect.colliderect(wall.rect):
                 if dx > 0: self.rect.right = wall.rect.left
                 if dx < 0: self.rect.left = wall.rect.right
 
-        # Y movement
+        # Y movement & collision
         self.rect.y += dy * PLAYER_SPEED
         for wall in walls:
             if self.rect.colliderect(wall.rect):
@@ -50,35 +50,40 @@ class Player:
                 if dy < 0: self.rect.top = wall.rect.bottom
 
     def draw(self, surface, camera):
-        # Draw the player at their camera-offset position
-        pygame.draw.rect(surface, (50, 150, 255), camera.apply(self))
+        # FIX: We pass self.rect, not self
+        pygame.draw.rect(surface, (50, 150, 255), camera.apply(self.rect))
 
 class Wall:
     def __init__(self, x, y, w, h):
         self.rect = pygame.Rect(x, y, w, h)
 
     def draw(self, surface, camera):
-        pygame.draw.rect(surface, WALL_COLOR, camera.apply(self))
+        pygame.draw.rect(surface, WALL_COLOR, camera.apply(self.rect))
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Top Down Melee Engine")
     clock = pygame.time.Clock()
 
-    # The player is now at a "World" coordinate (e.g., 400, 300)
-    player = Player(400, 300)
-    camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+    walls = []
+    player = None
 
-    # Create a larger "World" with walls spread out
-    walls = [
-        Wall(100, 100, 200, 30),
-        Wall(600, 500, 30, 200),
-        Wall(-200, 300, 150, 30),
-        Wall(800, -100, 30, 300),
-        # A floor boundary just to see the movement better
-        Wall(-500, -500, 2000, 20),
-        Wall(-500, 1000, 2000, 20),
-    ]
+    # Load map from config.py
+    for row_index, row in enumerate(LEVEL_MAP):
+        for col_index, char in enumerate(row):
+            x = col_index * TILE_SIZE
+            y = row_index * TILE_SIZE
+            
+            if char == "W":
+                walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+            elif char == "P":
+                player = Player(x, y)
+
+    if player is None:
+        player = Player(100, 100)
+
+    camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     running = True
     while running:
@@ -86,22 +91,18 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        # 1. Update Player Logic (World Space)
         player.move(walls)
-        
-        # 2. Update Camera (Follow Player)
         camera.update(player)
 
-        # 3. Render
         screen.fill(BG_COLOR)
         
-        # Draw everything relative to camera
         for wall in walls:
             wall.draw(screen, camera)
         player.draw(screen, camera)
 
         pygame.display.flip()
         clock.tick(FPS)
+    pygame.quit()
 
 if __name__ == "__main__":
     main()
