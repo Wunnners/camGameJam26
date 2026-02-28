@@ -4,6 +4,23 @@ from game_config import *
 from reset_dialogue import save_menu
 
 from enemy import *
+from cannon import Cannon
+
+# --- UTILITY ---
+def move_with_collision(rect, dx, dy, obstacles):
+    # Handle X movement
+    rect.x += dx
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dx > 0: rect.right = wall.left
+            if dx < 0: rect.left = wall.right
+
+    # Handle Y movement
+    rect.y += dy
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dy > 0: rect.bottom = wall.top
+            if dy < 0: rect.top = wall.bottom
 
 def handle_door_interact(player, doors):
     """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -16,17 +33,7 @@ def handle_door_interact(player, doors):
             toggled_indices.append(i)
     return toggled_indices
 
-def handle_door_interact(player, doors):
-    """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
-    toggled_indices = []
-    for i, door in enumerate(doors):
-        dist = math.hypot(player.rect.centerx - door.center[0], 
-                          player.rect.centery - door.center[1])
-        if dist < INTERACT_RANGE:
-            door.interact(player.rect)
-            toggled_indices.append(i)
-    return toggled_indices
-
+# --- CLASSES ---
 class Camera:
     def __init__(self):
         self.offset = pygame.Vector2(0, 0)
@@ -42,7 +49,6 @@ class Camera:
 class Wall:
     def __init__(self, x, y, w, h):
         self.rect = pygame.Rect(x, y, w, h)
-
     def draw(self, surface, camera):
         pygame.draw.rect(surface, WALL_COLOR, camera.apply(self.rect))
 
@@ -50,11 +56,7 @@ class Door:
     def __init__(self, x, y, orientation="vertical"):
         self.is_open = False
         self.thickness = 10
-        
-        # We store the "tile center" for easier interaction distance checking
         self.center = (x + TILE_SIZE // 2, y + TILE_SIZE // 2)
-
-        # Create the thin sliver rect
         if orientation == "vertical":
             self.rect = pygame.Rect(x + (TILE_SIZE // 2 - self.thickness // 2), y, self.thickness, TILE_SIZE)
         else:
@@ -64,7 +66,6 @@ class Door:
         if not self.is_open:
             self.is_open = True
         else:
-            # SAFETY CHECK: Only close if the player isn't currently standing inside the sliver
             if not self.rect.colliderect(player_rect):
                 self.is_open = False
 
@@ -81,16 +82,39 @@ class Ghost:
         pygame.draw.rect(surface, color, camera.apply(self.rect))
 
 class Player:
-    def __init__(self, x, y):
+    def __init__(self, x, y, walls, doors, cannons):
         self.rect = pygame.Rect(x, y, 40, 40)
         self.health = Health(100, self.rect)
         self.flash_timer = -100000
+        self.mounted_cannon = None
+        self.cannons = cannons
+        self.walls = walls 
+        self.doors = doors
 
     def take_damage(self, amount):
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
     
-    def move(self, walls, doors):
+    def interact_cannon(self):
+        if self.mounted_cannon:
+            self.mounted_cannon.mounted = False
+            self.mounted_cannon = None
+        else:
+            closest_cannon = None
+            min_dist = INTERACT_RANGE
+            for cannon in self.cannons:
+                dist = math.hypot(self.rect.centerx - cannon.rect.centerx, 
+                                  self.rect.centery - cannon.rect.centery)
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_cannon = cannon
+            if closest_cannon:
+                self.mounted_cannon = closest_cannon
+                self.mounted_cannon.mounted = True
+                self.rect.center = closest_cannon.rect.center
+
+    def move(self):
+        if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
         if keys[pygame.K_LEFT]:  dx -= 1
@@ -100,24 +124,25 @@ class Player:
 
         if dx != 0 and dy != 0:
             factor = 1 / math.sqrt(2)
-            dx *= factor
-            dy *= factor
+            dx, dy = dx * factor, dy * factor
 
-        # Obstacles = Walls + Closed Doors
-        obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
+        obstacles = [w.rect for w in self.walls] + [d.rect for d in self.doors if not d.is_open]
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
+        if self.mounted_cannon: return 
         now = pygame.time.get_ticks()
         color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
         pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
 
+# --- MAIN ---
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Top Down Door Engine")
+    pygame.display.set_caption("Top Down Melee & Cannon Engine")
     clock = pygame.time.Clock()
+    
     running = True
     saved_slots = [None,None]
     history = None
@@ -133,24 +158,21 @@ def main():
         seq2 = None
         enemies = []
         frame = 0
-        # Load level and determine door orientation automatically
+        
+        # Load Level
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W":
-                    walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                elif char == "G": enemies.append(Grunt(x, y))
+                elif char == "T": cannons.append(Cannon(x, y))
+                elif char == "P": player_start_pos = (x, y)
                 elif char == "D":
-                    # If there are walls to the left and right, it's a horizontal door
-                    # Otherwise, default to vertical
                     orientation = "vertical"
                     if 0 < c < len(row) - 1:
                         if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
-                elif char == "G":
-                    enemies.append(Grunt(x, y))
-                elif char == "P":
-                    player = Player(x, y)
 
         if not player: 
             player = Player(100, 100)
@@ -163,7 +185,7 @@ def main():
         camera = Camera()
 
         reset = False
-        while not reset:
+        while not reset and running:
             frame += 1
             if seq1:
                 if seq1["interactions"] and frame in seq1["interactions"]:
@@ -183,24 +205,40 @@ def main():
 
             if frame % LOCATION_INTERVAL == 0 or frame == 1:
                 history["locations"][frame] = (player.rect.x, player.rect.y)
+            
+            # --- EVENTS ---
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                     reset = True
-                
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         reset = True
                     if event.key == pygame.K_e:
-                        history["interactions"][frame] = handle_door_interact(player,doors)
+                        history["interactions"][frame] = handle_door_interact(player, doors)
+                    if event.key == pygame.K_m:
+                        player.interact_cannon()
 
-            player.move(walls, doors)
+            # --- UPDATE ---
+            player.move()
             camera.update(player)
 
+            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
+            
+            for c in cannons:
+                c.update(camera, obstacles, enemies)
+
+            if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
+                player.mounted_cannon.shoot()
+
+            for e in enemies[:]:
+                e.update(player, walls, doors)
+                if e.health.is_dead: enemies.remove(e)
+
+            # --- DRAW ---
             screen.fill(BG_COLOR)
-        
-            for wall in walls: wall.draw(screen, camera)
-            for door in doors: door.draw(screen, camera)
+            for obj in walls + doors + enemies + cannons:
+                obj.draw(screen, camera)
             player.draw(screen, camera)
             if seq1:
                 ghost1.draw(screen, camera)
@@ -208,7 +246,9 @@ def main():
                 ghost2.draw(screen, camera)
             pygame.display.flip()
             clock.tick(FPS)
-    print(history)
+            
+        print(f"Session History: {history}")
+        
     pygame.quit()
 
 if __name__ == "__main__":
