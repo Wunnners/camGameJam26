@@ -179,7 +179,7 @@ def main():
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
                 elif char.islower():
-                    button = GateButton(x, y)
+                    button = GateButton(x, y, char.lower())
                     if char not in button_map: button_map[char] = []
                     button_map[char].append(button)
                     buttons.append(button)
@@ -188,7 +188,7 @@ def main():
                     gate_map[char].append((x, y))
         for gate_char in gate_map:
             for gate_pos in gate_map[gate_char]:
-                gate = Gate(*gate_pos, button_map[gate_char.lower()])
+                gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())
                 gates.append(gate)
 
         player = Player(*player_start_pos, walls + waters, doors, cannons, gates)
@@ -233,7 +233,7 @@ def main():
                         # Interact with Doors
                         history["interactions"][frame] = handle_door_interact(player, doors)
                         # Interact with Buttons
-                        
+
                     if event.key == pygame.K_m:
                         player.interact_cannon()
 
