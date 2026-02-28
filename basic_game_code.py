@@ -65,10 +65,11 @@ class Door:
         pygame.draw.rect(surface, color, camera.apply(self.rect))
 
 class Ghost:
-    def __init__(self,x,y,sequence):
+    def __init__(self,x,y,sequence,buttons):
         self.rect = pygame.Rect(x,y,40,40)
         self.disabled = False
         self.sequence = sequence
+        self.buttons = buttons
     
     def draw(self, surface, camera):
         if self.disabled:
@@ -97,6 +98,9 @@ class Ghost:
         if self.sequence["cShoot"] and frame in self.sequence["cShoot"]:
             cannon = cannons[self.sequence["cShoot"][frame][0]]
             cannon.projectiles.append(Projectile(cannon.rect.centerx, cannon.rect.centery, self.sequence["cShoot"][frame][1]))
+        for button in self.buttons:
+            if self.rect.colliderect(button.rect):
+                button.press()
 
 class Player:
     def __init__(self, x, y, boundary, doors, cannons, gates):
@@ -151,7 +155,7 @@ class Player:
                 ind = self.mounted_cannon.index
         return(ind)
 
-    def move(self):
+    def move(self,buttons):
         if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
@@ -168,6 +172,10 @@ class Player:
         [d.rect for d in self.doors if not d.is_open] + \
         [g.rect for g in self.gates if not g.is_open]
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
+        for button in buttons:
+            if self.rect.colliderect(button.rect):
+                button.press()
+    
 
     def draw(self, surface, camera):
         if self.mounted_cannon: return 
@@ -235,10 +243,10 @@ def main():
         ghost1 = None
         ghost2 = None
         if saved_slots[0]:
-            ghost1 = Ghost(*saved_slots[0]["locations"][1], saved_slots[0])
+            ghost1 = Ghost(*saved_slots[0]["locations"][1], saved_slots[0],buttons)
             
         if saved_slots[1]:
-            ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1])
+            ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1],buttons)
         camera = Camera()
         reset = False
         while not reset and running:
@@ -269,7 +277,7 @@ def main():
                             history["cannons"][frame] = interacted_cannon_index
 
             # --- UPDATE ---
-            player.move()
+            player.move(buttons)
             camera.update(player)
 
             
@@ -277,6 +285,8 @@ def main():
                 obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \
                     + [g.rect for g in gates if not g.is_open]
                 c.update(camera, obstacles, enemies)
+            for g in gates:
+                g.update()
 
             if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
                 val = player.mounted_cannon.shoot() #val = cannon_index,angle tuple or None
