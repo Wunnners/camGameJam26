@@ -44,11 +44,13 @@ class Camera:
         y = -target.rect.centery + int(SCREEN_HEIGHT / 2)
         self.offset = pygame.Vector2(x, y)
 
-class Wall:
-    def __init__(self, x, y, w, h):
+class Boundary:
+    def __init__(self, x, y, w, h, color):
+        self.color = color
         self.rect = pygame.Rect(x, y, w, h)
     def draw(self, surface, camera):
-        pygame.draw.rect(surface, WALL_COLOR, camera.apply(self.rect))
+        pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+
 
 class Door:
     def __init__(self, x, y, orientation="vertical"):
@@ -72,13 +74,13 @@ class Door:
         pygame.draw.rect(surface, color, camera.apply(self.rect))
 
 class Player:
-    def __init__(self, x, y, walls, doors, cannons):
+    def __init__(self, x, y, boundary, doors, cannons):
         self.rect = pygame.Rect(x, y, 40, 40)
         self.health = Health(100, self.rect)
         self.flash_timer = -100000
         self.mounted_cannon = None
         self.cannons = cannons
-        self.walls = walls 
+        self.boundary = boundary 
         self.doors = doors
 
     def take_damage(self, amount):
@@ -116,7 +118,7 @@ class Player:
             factor = 1 / math.sqrt(2)
             dx, dy = dx * factor, dy * factor
 
-        obstacles = [w.rect for w in self.walls] + [d.rect for d in self.doors if not d.is_open]
+        obstacles = [w.rect for w in self.boundary] + [d.rect for d in self.doors if not d.is_open]
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
@@ -137,7 +139,7 @@ def main():
     while running:
         # Reset level state for every 'r' reset
         history = {"interactions": {}, "locations": {}}
-        walls, doors, enemies, cannons = [], [], [], []
+        walls, waters, doors, enemies, cannons = [], [], [], [], []
         player = None
         frame = 0
         
@@ -145,7 +147,8 @@ def main():
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Grunt(x, y))
                 elif char == "T": cannons.append(Cannon(x, y))
                 elif char == "P": player_start_pos = (x, y)
@@ -156,7 +159,7 @@ def main():
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
 
-        player = Player(player_start_pos[0], player_start_pos[1], walls, doors, cannons)
+        player = Player(player_start_pos[0], player_start_pos[1], walls + waters, doors, cannons)
         camera = Camera()
 
         reset = False
@@ -182,21 +185,21 @@ def main():
             player.move()
             camera.update(player)
 
-            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
             
             for c in cannons:
+                obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
                 c.update(camera, obstacles, enemies)
 
             if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
                 player.mounted_cannon.shoot()
 
             for e in enemies[:]:
-                e.update(player, walls, doors)
+                e.update(player, walls + waters, doors)
                 if e.health.is_dead: enemies.remove(e)
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
-            for obj in walls + doors + enemies + cannons:
+            for obj in walls + waters + doors + enemies + cannons:
                 obj.draw(screen, camera)
             player.draw(screen, camera)
 

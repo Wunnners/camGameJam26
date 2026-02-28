@@ -58,7 +58,7 @@ class Enemy(ABC):
     def take_damage(self, amount):
         pass
     @abstractmethod
-    def update(self, info):
+    def update(self, player, boundary, doors):
         pass
     @abstractmethod
     def draw(self, surface, camera):
@@ -80,7 +80,7 @@ class Grunt(Enemy):
     def take_damage(self, amount):
         self.health.take_damage(amount)
     
-    def update(self, player, walls, doors):
+    def update(self, player, boundaries, doors):
         dx = player.rect.centerx - self.rect.centerx
         dy = player.rect.centery - self.rect.centery
         dist = math.hypot(dx, dy)
@@ -88,7 +88,7 @@ class Grunt(Enemy):
         if dist != 0 and dist < 400:
             vx = (dx / dist) * self.speed
             vy = (dy / dist) * self.speed
-            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
+            obstacles = [w.rect for w in boundaries] + [d.rect for d in doors if not d.is_open]
             move_with_collision(self.rect, vx, vy, obstacles)
 
         if self.rect.colliderect(player.rect):
