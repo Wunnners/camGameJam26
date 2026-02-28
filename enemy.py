@@ -6,6 +6,25 @@ from abc import ABC, abstractmethod
 
 import pygame
 
+def move_with_collision(rect, dx, dy, obstacles):
+    """
+    Moves a rect by dx, dy while checking against a list of obstacle rects.
+    """
+    # Handle X movement
+    rect.x += dx
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dx > 0: rect.right = wall.left
+            if dx < 0: rect.left = wall.right
+
+    # Handle Y movement
+    rect.y += dy
+    for wall in obstacles:
+        if rect.colliderect(wall):
+            if dy > 0: rect.bottom = wall.top
+            if dy < 0: rect.top = wall.bottom
+
+
 class Health:
     def __init__(self, max_hp, owner_rect):
         self.max_hp = max_hp
@@ -69,8 +88,8 @@ class Grunt(Enemy):
         if dist != 0 and dist < 400:
             vx = (dx / dist) * self.speed
             vy = (dy / dist) * self.speed
-            self.rect.x += vx
-            self.rect.y += vy
+            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
+            move_with_collision(self.rect, vx, vy, obstacles)
 
         if self.rect.colliderect(player.rect):
             current_time = pygame.time.get_ticks()

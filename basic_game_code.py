@@ -73,20 +73,7 @@ class Player:
 
         # Obstacles = Walls + Closed Doors
         obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
-
-        # X movement & collision
-        self.rect.x += dx * PLAYER_SPEED
-        for obj_rect in obstacles:
-            if self.rect.colliderect(obj_rect):
-                if dx > 0: self.rect.right = obj_rect.left
-                if dx < 0: self.rect.left = obj_rect.right
-
-        # Y movement & collision
-        self.rect.y += dy * PLAYER_SPEED
-        for obj_rect in obstacles:
-            if self.rect.colliderect(obj_rect):
-                if dy > 0: self.rect.bottom = obj_rect.top
-                if dy < 0: self.rect.top = obj_rect.bottom
+        move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
         now = pygame.time.get_ticks()
