@@ -194,12 +194,10 @@ def main():
                    "cShoot": {}, # cShoot: frame -> (cannon index, angle) for every cannon shot
                    "cannons": {}, # cannon: frame -> cannon index interacted with (or None)
                    "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
-        walls = []
-        doors = []
+        walls, doors, waters, cannons, buttons, gates, enemies = [], [], [], [], [], [], []
         player = None
         seq1, seq2 = None, None
         frame = 0
-        cannons = []
         
         # Load Level
         button_map: dict[str, list[GateButton]] = {}
@@ -262,7 +260,7 @@ def main():
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
-                        history["interactions"][frame] = handle_door_interact(player, doors)
+                        history["interactions"][frame] = player.handle_door_interact()
                         # Interact with Buttons
 
                     if event.key == pygame.K_m:
