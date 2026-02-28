@@ -180,7 +180,7 @@ def main():
                     doors.append(Door(x, y, orientation))
 
         if not player: 
-            player = Player(100, 100)
+            player = Player(*player_start_pos, walls + waters, doors, cannons)
         if saved_slots[0]:
             seq1 = saved_slots[0]
             ghost1 = Ghost(*saved_slots[0]["locations"][1])
