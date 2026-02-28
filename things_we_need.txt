@@ -1,0 +1,11 @@
+Basic 2d environment/rule implementation
+A path rememberer (thing to remember previous run) and a way to choose the runs
+AI stuff
+
+
+Game dynamics:
+- Top down view game (or like brawl starts) (melee/shooting)
+- To open a door, need to press 2 buttons at the same time.
+- There will be enemies that need to be killed
+- Have the ability to go back in time to get a better path
+- 
