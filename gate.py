@@ -10,7 +10,7 @@ class GateButton:
         self.rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
         self.id = button_id.upper()
         self.pressed_timer = -10000
-        self.duration = 3000  # 3 seconds
+        self.duration = 10  # 10ms
         
         self.text_surf = DEBUG_FONT.render(self.id.upper(), True, (255, 255, 255))
         self.text_rect = self.text_surf.get_rect()
@@ -57,10 +57,19 @@ class Gate:
         self.text_surf = DEBUG_FONT.render(self.id, True, (255, 255, 255))
         self.text_rect = self.text_surf.get_rect()
 
-    def update(self):
-        if self.is_open:
+    def update(self, blocker_rects=None):
+        target_is_open = all(button.is_active() for button in self.buttons)
+        if target_is_open:
+            self.is_open = True
             return
-        self.is_open = all(button.is_active() for button in self.buttons)
+
+        if blocker_rects is None:
+            blocker_rects = []
+
+        if any(self.rect.colliderect(blocker_rect) for blocker_rect in blocker_rects):
+            return
+
+        self.is_open = False
 
     def draw(self, surface, camera):
         draw_rect = camera.apply(self.rect)

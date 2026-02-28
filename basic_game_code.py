@@ -285,8 +285,9 @@ def main():
                 obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \
                     + [g.rect for g in gates if not g.is_open]
                 c.update(camera, obstacles, enemies)
+            gate_blockers = [player.rect] + [enemy.rect for enemy in enemies]
             for g in gates:
-                g.update()
+                g.update(gate_blockers)
 
             if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
                 val = player.mounted_cannon.shoot() #val = cannon_index,angle tuple or None
@@ -294,7 +295,7 @@ def main():
                     history["cShoot"][frame] = val
 
             for e in enemies:
-                obstacles = [w.rect for w in (waters + walls)] + [d.rect for d in doors if not d.is_open]
+                obstacles = [w.rect for w in (waters + walls)] + [d.rect for d in doors if not d.is_open] + [g.rect for g in gates if not g.is_open]
                 e.update(player, obstacles)
                 if e.health.is_dead: enemies.remove(e)
 
