@@ -2,11 +2,11 @@ import pygame
 import math
 from game_config import *
 from reset_dialogue import save_menu
+from gate import *
 
 from enemy import *
 from cannon import *
 
-# --- UTILITY ---
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
     rect.x += dx
@@ -35,11 +35,13 @@ class Camera:
         y = -target.rect.centery + int(SCREEN_HEIGHT / 2)
         self.offset = pygame.Vector2(x, y)
 
-class Wall:
-    def __init__(self, x, y, w, h):
+class Boundary:
+    def __init__(self, x, y, w, h, color):
+        self.color = color
         self.rect = pygame.Rect(x, y, w, h)
     def draw(self, surface, camera):
-        pygame.draw.rect(surface, WALL_COLOR, camera.apply(self.rect))
+        pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+
 
 class Door:
     def __init__(self, x, y, orientation="vertical"):
@@ -97,14 +99,15 @@ class Ghost:
             cannon.projectiles.append(Projectile(cannon.rect.centerx, cannon.rect.centery, self.sequence["cShoot"][frame][1]))
 
 class Player:
-    def __init__(self, x, y, walls, doors, cannons):
+    def __init__(self, x, y, boundary, doors, cannons, gates):
         self.rect = pygame.Rect(x, y, 40, 40)
         self.health = Health(100, self.rect)
         self.flash_timer = -100000
         self.mounted_cannon = None
         self.cannons = cannons
-        self.walls = walls 
+        self.boundary = boundary 
         self.doors = doors
+        self.gates = gates
 
     def take_damage(self, amount):
         self.health.take_damage(amount)
@@ -161,7 +164,9 @@ class Player:
             factor = 1 / math.sqrt(2)
             dx, dy = dx * factor, dy * factor
 
-        obstacles = [w.rect for w in self.walls] + [d.rect for d in self.doors if not d.is_open]
+        obstacles = [w.rect for w in self.boundary] + \
+        [d.rect for d in self.doors if not d.is_open] + \
+        [g.rect for g in self.gates if not g.is_open]
         move_with_collision(self.rect, dx * PLAYER_SPEED, dy * PLAYER_SPEED, obstacles)
 
     def draw(self, surface, camera):
@@ -175,12 +180,13 @@ class Player:
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Top Down Melee & Cannon Engine")
+    pygame.display.set_caption("Top Down Melee, Cannon & Gate Engine")
     clock = pygame.time.Clock()
     
     running = True
-    saved_slots = [None,None]
+    saved_slots = [None, None]
     history = None
+
     while running:
         if history:
             save_menu(screen,history,saved_slots)
@@ -191,17 +197,18 @@ def main():
         walls = []
         doors = []
         player = None
-        seq1 = None
-        seq2 = None
-        enemies = []
+        seq1, seq2 = None, None
         frame = 0
         cannons = []
         
         # Load Level
+        button_map: dict[str, list[GateButton]] = {}
+        gate_map: dict[str, list[tuple]] = {}
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W": walls.append(Wall(x, y, TILE_SIZE, TILE_SIZE))
+                if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Grunt(x, y))
                 elif char == "T": 
                     cannon = Cannon(x,y)
@@ -214,19 +221,27 @@ def main():
                         if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
                             orientation = "horizontal"
                     doors.append(Door(x, y, orientation))
-
-        if not player: 
-            player = Player(100, 100, walls, doors, cannons)
+                elif char.islower():
+                    button = GateButton(x, y, char.lower())
+                    if char not in button_map: button_map[char] = []
+                    button_map[char].append(button)
+                    buttons.append(button)
+                elif char.isupper():
+                    if char not in gate_map: gate_map[char] = []
+                    gate_map[char].append((x, y))
+        for gate_char in gate_map:
+            for gate_pos in gate_map[gate_char]:
+                gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())
+                gates.append(gate)
+        player = Player(*player_start_pos, walls + waters, doors, cannons, gates)
         ghost1 = None
         ghost2 = None
-        
         if saved_slots[0]:
             ghost1 = Ghost(*saved_slots[0]["locations"][1], saved_slots[0])
             
         if saved_slots[1]:
             ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1])
         camera = Camera()
-
         reset = False
         while not reset and running:
             frame += 1
@@ -246,7 +261,10 @@ def main():
                         reset = True
                         continue
                     if event.key == pygame.K_e:
-                        history["doors"][frame] = player.handle_door_interact()
+                        # Interact with Doors
+                        history["interactions"][frame] = handle_door_interact(player, doors)
+                        # Interact with Buttons
+
                     if event.key == pygame.K_m:
                         interacted_cannon_index = player.interact_cannon()
                         if interacted_cannon_index is not None:
@@ -256,9 +274,10 @@ def main():
             player.move()
             camera.update(player)
 
-            obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open]
             
             for c in cannons:
+                obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \
+                    + [g.rect for g in gates if not g.is_open]
                 c.update(camera, obstacles, enemies)
 
             if player.mounted_cannon and pygame.mouse.get_pressed()[0]:
@@ -266,14 +285,20 @@ def main():
                 if val:
                     history["cShoot"][frame] = val
 
-            for e in enemies[:]:
-                e.update(player, walls, doors)
+            for e in enemies:
+                obstacles = [w.rect for w in (waters + walls)] + [d.rect for d in doors if not d.is_open]
+                e.update(player, obstacles)
                 if e.health.is_dead: enemies.remove(e)
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
-            for obj in walls + doors + enemies + cannons:
+            # Draw everything in order
+            for obj in walls + waters + doors + buttons + gates + enemies + cannons:
                 obj.draw(screen, camera)
+            
+            if seq1: ghost1.draw(screen, camera)
+            if seq2: ghost2.draw(screen, camera)
+            
             player.draw(screen, camera)
             if ghost1:
                 ghost1.draw(screen, camera)
@@ -282,8 +307,6 @@ def main():
             pygame.display.flip()
             clock.tick(FPS)
             
-        print(f"Session History: {history}")
-        
     pygame.quit()
 
 if __name__ == "__main__":
