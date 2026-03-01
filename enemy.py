@@ -75,8 +75,6 @@ class Grunt(Enemy):
         self.attack_cooldown = 2000
         self.last_attack_time = 0
         self.health = Health(50, self.rect)
-        sps = Spritesheet('assets/bh/Ninja Adventure - Asset Pack/Actor/Animals/Cat/Faceset.png')
-        self.a = (Animation(sps, 5, [0]),)
 
     def is_active(self):
         return self.health.current_hp <= 0
@@ -104,8 +102,5 @@ class Grunt(Enemy):
                 self.last_attack_time = current_time
 
     def draw(self, surface, camera):
-        # pygame.draw.rect(surface, self.color, camera.apply(self.rect))
-        bruh = camera.apply(self.rect)
-        img = self.a[0].get_image()
-        # surface.blit(img, (bruh.x, bruh.y))
-        # self.health.draw(surface, camera)
+        pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+        self.health.draw(surface, camera)
