@@ -3,6 +3,7 @@ import math
 from game_config import *
 from reset_dialogue import *
 from win_dialogue import win_menu
+from music_select import play_music, loop_music
 from gate import *
 from ss import *
 from animation import *
@@ -10,6 +11,61 @@ from animation import *
 # from enemy import *
 from enemy_basic import *
 from cannon import *
+
+WARP_MUSIC_PATH = "assets/warp.wav"
+NORMAL_MUSIC_PATH = "assets/normal.wav"
+INTENSE_MUSIC_PATH = "assets/intense.wav"
+
+sps9, tilea = None, None
+
+def drawtiles(surface, p, cam):
+    global sps9, tilea
+    screen_pos = cam.apply(p)
+    if sps9 is None:
+        sps9 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        tilea = (
+        Animation(sps9, 5, list(range(256))),
+        )
+    rx = (p.x // TILE_SIZE) * TILE_SIZE
+    ry = (p.y // TILE_SIZE) * TILE_SIZE
+    screen_pos = cam.apply(pygame.Rect(rx, ry, 0, 0))
+    wx = screen_pos.x
+    wy = screen_pos.y
+    for x in range(-30, 30):
+        for y in range(-20, 20):
+            xx = x + (p.x // TILE_SIZE)
+            yy = y + (p.y // TILE_SIZE)
+            img = tilea[0].get_image((xx + 377 * yy + 3 * xx * xx) % 256)
+            img = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+            surface.blit(img, (wx + x * TILE_SIZE, wy + y * TILE_SIZE))
+
+def get_room(player, room_info) -> int:
+    """
+    Determines which room the player is in based on their center point.
+    Returns the integer room ID (0-7) or -1 if in a corridor.
+    """
+    player_center = player.rect.center
+    
+    for room_id_str, coords in room_info.items():
+        if not coords:
+            continue
+            
+        # Find the boundaries of the room based on the digit positions
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_y = min(c[1] for c in coords)
+        max_y = max(c[1] for c in coords)
+        
+        # Create a Rect covering the room (including the tiles the digits were on)
+        room_rect = pygame.Rect(min_x, min_y, 
+                                max_x - min_x + TILE_SIZE, 
+                                max_y - min_y + TILE_SIZE)
+        
+        if room_rect.collidepoint(player_center):
+            return int(room_id_str)
+            
+    return -1 # Not in a numbered room (Alleyway)
+
 
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
@@ -67,7 +123,34 @@ class Boundary:
     def __init__(self, x, y, w, h, color):
         self.color = color
         self.rect = pygame.Rect(x, y, w, h)
+
+        # sps = Spritesheet('assets/ss/dungeon_ v1.0/dungeon_.png', 8)
+        # self.a = (
+        #     Animation(sps, 5, [64]),
+        # )
+
+        sps1 = Spritesheet('assets/ppp/Texture/TX Tileset Wall.png', 32)
+        sps2 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        sps3 = Spritesheet('assets/Water+.png', 16)
+        self.a = (
+            Animation(sps1, 5, [22 + 16]),
+            Animation(sps2, 5, [21]),
+            Animation(sps3, 60, [2, 3, 4]),
+            # Animation(sps3, 800, [5, 6]),
+        )
     def draw(self, surface, camera):
+        if self.color == WALL_COLOR:
+            img = self.a[0].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
+        if self.color == WATER_COLOR:
+            img = self.a[2].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
         pygame.draw.rect(surface, self.color, camera.apply(self.rect))
 
 
@@ -284,8 +367,10 @@ class Player:
         # surface.blit(img, (0, 0))
         pp = img.get_size()
         # print(pp)
-        surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
-        # surface.blit(img, (bruh.x, bruh.y))
+        # surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
+        surface.blit(img, (bruh.x - pp[0] / 4 - 5, bruh.y - pp[1] / 2 - 20))
+        # print(bruh, pp)
+        # surface.blit(pygame.transform.scale(img, bruh.size), (bruh.x, bruh.y))
         # surface.blit(img, (bruh.x - bruh.w, bruh.y - bruh.h))
         # pygame.dr
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
@@ -302,8 +387,14 @@ def main():
     running = True
     saved_slots = [None, None]
     history = None
+    warped_once = False
 
     while running:
+        if warped_once:
+            loop_music(INTENSE_MUSIC_PATH)
+        else:
+            loop_music(NORMAL_MUSIC_PATH)
+
         if history:
             save_menu(screen,history,saved_slots)
         history = {"doors": {}, # doors: frame -> list of door indices toggled
@@ -319,10 +410,16 @@ def main():
         # Load Level
         button_map: dict[str, list[GateButton]] = {}
         gate_map: dict[str, list[tuple]] = {}
+        room_info: dict[str, tuple] = {}
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                if char.isdigit():
+                    if char not in room_info:
+                        room_info[char] = []
+                    room_info[char].append((x, y))
+                    walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                elif char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Basic(x, y))
                 elif char == "T": 
@@ -372,9 +469,13 @@ def main():
                     reset = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
+                        play_music(WARP_MUSIC_PATH)
+                        warped_once = True
                         reset = True
                         active_ghosts = [g for g in [ghost1,ghost2] if g is not None]
                         replay_reverse(screen, history, all_drawables, camera,player,active_ghosts)
+                        save_menu(screen, history, saved_slots)
+                        history = None
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
@@ -389,6 +490,12 @@ def main():
 
 
             # --- UPDATE ---
+            if not pygame.mixer.music.get_busy():
+                if warped_once:
+                    loop_music(INTENSE_MUSIC_PATH)
+                else:
+                    loop_music(NORMAL_MUSIC_PATH)
+
             player.move(buttons)
             camera.update(player)
 
@@ -425,6 +532,7 @@ def main():
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
+            drawtiles(screen, player.rect, camera)
             # Draw everything in order
             all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
             if goal:
