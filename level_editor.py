@@ -45,10 +45,13 @@ while running:
         
         # Keyboard Selection
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_W: current_char = "W" # Wall
-            if event.key == pygame.K_E: current_char = "." # Erase
-            if event.key == pygame.K_X: current_char = "D" # Door
-            if event.key == pygame.K_4: current_char = "T" # Trap
+            if event.key == pygame.K_w: current_char = "W" # Wall
+            if event.key == pygame.K_e: current_char = "." # Erase
+            if event.key == pygame.K_d: current_char = "D" # Door
+            if event.key == pygame.K_t: current_char = "T" # Trap
+            if event.key == pygame.K_b: current_char = "B" # Trap
+            if event.key == pygame.K_g: current_char = "G" # Trap
+            if event.key == pygame.K_p: current_char = "P" # Trap
             if event.key == pygame.K_s:
                 export_grid(grid)
 
