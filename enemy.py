@@ -88,7 +88,8 @@ class Grunt(Enemy):
         
 
     def take_damage(self, amount):
-        self.health.take_damage(amount)
+        self.health.take_damage(10000)
+        # self.health.take_damage(amount)
     
     def update(self, player, obstacles):
         return

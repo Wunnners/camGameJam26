@@ -408,6 +408,10 @@ def to_screen(pos, rid):
     p = envs[rid].to_screen(envs[rid].p[0].pos)
 
 def update_env(env: WorldEnv, rid, left_clicked):
+    # if karp.is_gay: yay
+    for idx in range(1, env.n_players):
+        if env_players[rid][idx].health.current_hp <= 0:
+            env.p[idx].health = 0
     keys = pygame.key.get_pressed()
     dx = 0
     dy = 0
