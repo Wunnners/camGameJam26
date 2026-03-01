@@ -4,8 +4,6 @@ import random
 from game_config import *
 from abc import ABC, abstractmethod
 
-import pygame
-
 def move_with_collision(rect, dx, dy, obstacles):
     """
     Moves a rect by dx, dy while checking against a list of obstacle rects.
