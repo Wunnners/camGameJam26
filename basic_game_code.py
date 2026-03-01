@@ -25,6 +25,34 @@ room_tl = {
     5: (29, 31)
 }
 
+def get_room(player, room_info) -> int:
+    """
+    Determines which room the player is in based on their center point.
+    Returns the integer room ID (0-7) or -1 if in a corridor.
+    """
+    player_center = player.rect.center
+    
+    for room_id_str, coords in room_info.items():
+        if not coords:
+            continue
+            
+        # Find the boundaries of the room based on the digit positions
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_y = min(c[1] for c in coords)
+        max_y = max(c[1] for c in coords)
+        
+        # Create a Rect covering the room (including the tiles the digits were on)
+        room_rect = pygame.Rect(min_x, min_y, 
+                                max_x - min_x + TILE_SIZE, 
+                                max_y - min_y + TILE_SIZE)
+        
+        if room_rect.collidepoint(player_center):
+            return int(room_id_str)
+            
+    return -1 # Not in a numbered room (Alleyway)
+
+
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
     rect.x += dx
@@ -81,7 +109,34 @@ class Boundary:
     def __init__(self, x, y, w, h, color):
         self.color = color
         self.rect = pygame.Rect(x, y, w, h)
+
+        # sps = Spritesheet('assets/ss/dungeon_ v1.0/dungeon_.png', 8)
+        # self.a = (
+        #     Animation(sps, 5, [64]),
+        # )
+
+        sps1 = Spritesheet('assets/ppp/Texture/TX Tileset Wall.png', 32)
+        sps2 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        sps3 = Spritesheet('assets/Water+.png', 16)
+        self.a = (
+            Animation(sps1, 5, [22 + 16]),
+            Animation(sps2, 5, [21]),
+            Animation(sps3, 60, [2, 3, 4]),
+            # Animation(sps3, 800, [5, 6]),
+        )
     def draw(self, surface, camera):
+        if self.color == WALL_COLOR:
+            img = self.a[0].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
+        if self.color == WATER_COLOR:
+            img = self.a[2].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
         pygame.draw.rect(surface, self.color, camera.apply(self.rect))
 
 
@@ -307,10 +362,16 @@ def main():
         # Load Level
         button_map: dict[str, list[GateButton]] = {}
         gate_map: dict[str, list[tuple]] = {}
+        room_info: dict[str, tuple] = {}
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                if char.isdigit():
+                    if char not in room_info:
+                        room_info[char] = []
+                    room_info[char].append((x, y))
+                    walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                elif char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Basic(x, y))
                 elif char == "T": 
@@ -363,6 +424,8 @@ def main():
                     if event.key == pygame.K_r:
                         reset = True
                         replay_reverse(screen, history, all_drawables, camera)
+                        save_menu(screen, history, saved_slots)
+                        history = None
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
@@ -380,6 +443,10 @@ def main():
             player.move(buttons)
             camera.update(player)
             print(player.rect.center)
+
+            rid = get_room(player, room_info)
+            if rid in room_tl:
+                envs[rid].step(0, )
             
             for c in cannons:
                 obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \

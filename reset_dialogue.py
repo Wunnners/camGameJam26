@@ -4,52 +4,72 @@ import pygame
 
 def replay_reverse(screen, history, all_drawables, camera):
     """
-    Fast-forwards the current run's history in reverse.
-    Draws only the environment and the current run's path.
+    Fast-forwards history in reverse with a VHS-style rewind overlay.
     """
     if not history or not history["locations"]:
         return
 
-    # Speed of the rewind (frames skipped per update)
     REPLAY_SPEED = 1
-    # Get the frames in descending order for reverse playback
     loc_frames = sorted(history["locations"].keys(), reverse=True)
+    max_frames = len(loc_frames)
     
     clock = pygame.time.Clock()
 
+    # Create a persistent surface for scanlines to save performance
+    scanline_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    for y in range(0, SCREEN_HEIGHT, 4):
+        pygame.draw.line(scanline_surf, (0, 0, 0, 40), (0, y), (SCREEN_WIDTH, y))
+
     i = 0
-    while i < len(loc_frames):
+    while i < max_frames:
         if i % 5 == 0:
             REPLAY_SPEED += 1
+            
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE: return
 
-        # Identify current frame and position
         frame = loc_frames[i]
         pos = history["locations"][frame]
         
-        # Update camera to follow the rewind point
         rewind_rect = pygame.Rect(pos[0], pos[1], 40, 40)
         camera.update(type('obj', (object,), {'rect': rewind_rect}))
 
         screen.fill(BG_COLOR)
         
-        # Draw the world state exactly as it ended
+        # 1. Draw Game World
         for obj in all_drawables:
             if camera.view_rect.colliderect(obj.rect):
                 obj.draw(screen, camera)
         
-        # Draw the "Rewind" indicator for the current run
-        # Using a bright color to distinguish it from a normal player
         pygame.draw.rect(screen, (0, 255, 255), camera.apply(rewind_rect))
 
-        # Simple HUD overlay
-        font = pygame.font.SysFont(None, 36)
-        text = font.render("REWINDING CURRENT RUN...", True, (255, 50, 50))
-        screen.blit(text, (20, 20))
+        # --- REPLAY OVERLAY LAYER ---
+        
+        # 2. Draw Scanlines (VHS Effect)
+        screen.blit(scanline_surf, (0, 0))
+
+        # 3. Tint the screen slightly red/blue
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((255, 0, 0, 20)) # Very faint red tint
+        screen.blit(overlay, (0, 0))
+
+        # 4. HUD Text & Rewind Icon
+        font = pygame.font.SysFont("Courier", 40, bold=True)
+        # Flickering effect using frame count
+        if (i // 2) % 2 == 0:
+            text = font.render("<< REWIND", True, (255, 255, 255))
+            screen.blit(text, (30, 30))
+        
+        # 5. Progress Bar at the bottom
+        bar_width = SCREEN_WIDTH - 100
+        progress = (i / max_frames)
+        fill_width = int(bar_width * (1 - progress)) # Decreases as we go back
+        
+        pygame.draw.rect(screen, (50, 50, 50), (50, SCREEN_HEIGHT - 50, bar_width, 10))
+        pygame.draw.rect(screen, (255, 255, 255), (50, SCREEN_HEIGHT - 50, fill_width, 10))
 
         pygame.display.flip()
         clock.tick(0.5 * FPS)

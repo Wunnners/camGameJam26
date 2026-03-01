@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ................WWWWWWWWWWWW..............
 ................W..........W..............
 ................W..........W..............
@@ -68,3 +69,17 @@ WWWWWWWWWWWW..WWWWWW..WWWW..WWWWWWWWWWWWWW
 ..............W............W................
 ..............W............W................
 ..............WWWWWWWWWWWWWW................
+=======
+WWWWWWWWWWW
+WSWWWWWWWWW
+W....J...WW
+WWWWWW.W.WW
+W....WJWJWW
+W.WW.W.WGWW
+W.W..I.WWWW
+W.W.WW.WGWW
+W.WIGW..IWW
+W.WWWWWWWWW
+WP...i..jWW
+WWWWWWWWWWW
+>>>>>>> 2a0937efa65b04866dc5342f8a0db00012d698b8
