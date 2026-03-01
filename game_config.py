@@ -1,3 +1,5 @@
+import os
+
 import pygame
 pygame.init()
 
@@ -19,5 +21,8 @@ INTERACT_RANGE = 90
 MINICAM_DISPLAY_SIZE = 200
 MINICAM_CAPTURE_SIZE = 500
 LOCATION_INTERVAL = 1 # Record player location every LOCATION_INTERVAL frames for replay
-with open("map_select.txt", "r") as f:
-    LEVEL_MAP = [line.strip() for line in f.readlines()]
+if os.path.exists("map_select.txt"):
+    with open("map_select.txt", "r") as f:
+        LEVEL_MAP = [line.strip() for line in f.readlines()]
+else:
+    LEVEL_MAP = []
