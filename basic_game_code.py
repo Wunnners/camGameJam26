@@ -466,7 +466,11 @@ def main():
         if saved_slots[1]:
             ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1],buttons)
         camera = Camera()
+        all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
+        if goal:
+            all_drawables.append(goal)
         reset = False
+        trigger_rewind = False
         while not reset and running:
             frame += 1
             if ghost1: ghost1.update(frame, doors, cannons, player.rect) #note, update doesn't draw the ghost, that is further down
@@ -484,11 +488,8 @@ def main():
                     if event.key == pygame.K_r:
                         play_music(WARP_MUSIC_PATH)
                         warped_once = True
+                        trigger_rewind = True
                         reset = True
-                        active_ghosts = [g for g in [ghost1,ghost2] if g is not None]
-                        replay_reverse(screen, history, all_drawables, camera,player,active_ghosts)
-                        save_menu(screen, history, saved_slots)
-                        history = None
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
@@ -500,7 +501,12 @@ def main():
                         if interacted_cannon_index is not None:
                             history["cannons"][frame] = interacted_cannon_index
                     
-
+            if trigger_rewind:
+                active_ghosts = [g for g in [ghost1, ghost2] if g is not None]
+                replay_reverse(screen, history, all_drawables, camera, player, active_ghosts)
+                save_menu(screen, history, saved_slots)
+                history = None
+                continue
 
             # --- UPDATE ---
             if not pygame.mixer.music.get_busy():
