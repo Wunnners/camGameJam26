@@ -384,14 +384,14 @@ class Player:
         return (self.orit, self.idle)
 
 envs = {
-    1: WorldEnv(4),
-    4: WorldEnv(1)
+    1: WorldEnv(4, (16,8)),
+    4: WorldEnv(1, (8,8))
     # 5: WorldEnv(2),
     # 6: WorldEnv(2),
     # 7: WorldEnv(1),
 }
 room_tl = {
-    1: (17, 15),
+    1: (11, 15),
     4: (16, 31),
     # 5: (29, 31),
 }
@@ -403,15 +403,18 @@ env_players = {
     # 5: [],
 }
 model = PPO.load("ai/modelSELF28/final", env=envs[1])
+game_over = False
 
 def to_screen(pos, rid):
     p = envs[rid].to_screen(envs[rid].p[0].pos)
 
 def update_env(env: WorldEnv, rid, left_clicked):
-    # if karp.is_gay: yay
+    global game_over
+    #bosco is gay
     for idx in range(1, env.n_players):
         if env_players[rid][idx].health.current_hp <= 0:
             env.p[idx].health = 0
+
     keys = pygame.key.get_pressed()
     dx = 0
     dy = 0
@@ -450,6 +453,9 @@ def update_env(env: WorldEnv, rid, left_clicked):
         pos = (tmp[0]+tmp1[0], tmp[1]+tmp1[1])
         env_players[rid][i].rect.centerx = pos[0]
         env_players[rid][i].rect.centery = pos[1]
+    
+    if env.p[0].health <= 0:
+        game_over = True
 
 def draw_ai(screen, camera, rid, idx, player_color):
         env = envs[rid]
@@ -730,7 +736,11 @@ def main():
                     else:
                         ghosts = [ghost2]
                     draw_mini_camera(screen, ghost2, all_drawables + [player] + ghosts, 20, 40 + MINICAM_DISPLAY_SIZE)
-
+            
+            font = pygame.font.SysFont(None, 72)
+            text_surface = font.render("GAME OVER", True, (255, 0, 0))
+            if game_over:
+                screen.blit(text_surface, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50))
             
             pygame.display.flip()
             clock.tick(FPS)
