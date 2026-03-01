@@ -106,12 +106,41 @@ class Ghost:
         self.disabled = False
         self.sequence = sequence
         self.buttons = buttons
+        sps = Spritesheet('assets/Players/Dwarf/dwarf x4.png', 128)
+        self.down = (Animation(sps, 5, [15, 16, 17, 18]), Animation(sps, 5, [2]))
+        self.right = (Animation(sps, 5, [5, 6, 7, 8]), Animation(sps, 5, [0]))
+        self.up = (Animation(sps, 5, [10, 11, 12, 13]), Animation(sps, 5, [1]))
+
+        self.orit = 2
+        self.idle = True
     
     def draw(self, surface, camera):
         if self.disabled:
             return
-        color = (255, 0, 255)
-        pygame.draw.rect(surface, color, camera.apply(self.rect))
+
+        # 1. Pick the correct animation set
+        if self.orit == 0: bb = self.up
+        elif self.orit == 2: bb = self.down
+        else: bb = self.right
+        
+        # 2. Get the raw image
+        img = bb[self.idle].get_image().copy() # Copy so we don't tint the original
+        if self.orit == 1:
+            img = pygame.transform.flip(img, True, False)
+
+        # 3. Apply "Ghost" Tint (Grey/Blue tint)
+        # This fills the non-transparent parts of the sprite with a color
+        tint = pygame.Surface(img.get_size(), pygame.SRCALPHA)
+        tint.fill((200, 200, 200, 150)) # Grey-blue with some alpha
+        img.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        
+        # Optional: Set overall transparency
+        img.set_alpha(180) 
+
+        # 4. Blit to screen
+        screen_pos = camera.apply(self.rect)
+        img_size = img.get_size()
+        surface.blit(img, (screen_pos.x - img_size[0] / 4, screen_pos.y - img_size[1] / 2))
 
     def toggle_draw(self):
         self.disabled = not self.disabled
@@ -137,6 +166,9 @@ class Ghost:
         button_indices = self.rect.collidelistall(self.buttons)
         for i in button_indices:
             self.buttons[i].press()
+        if self.sequence["animations"] and frame in self.sequence["animations"]:
+            self.orit,self.idle = self.sequence["animations"][frame]
+
 
 class Player:
     def __init__(self, x, y, boundary, doors, cannons, gates):
@@ -159,9 +191,6 @@ class Player:
     def take_damage(self, amount):
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
-
-    # def get_animation_state(self):
-    #     return (self.orit, self.idle)
     
     def handle_door_interact(self):
         """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -205,10 +234,6 @@ class Player:
         if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
-        # if keys[pygame.K_LEFT]:  dx -= 1
-        # if keys[pygame.K_RIGHT]: dx += 1
-        # if keys[pygame.K_UP]:    dy -= 1
-        # if keys[pygame.K_DOWN]:  dy += 1
 
         if keys[pygame.K_w]:
             dy -= 1
@@ -239,6 +264,7 @@ class Player:
         button_indices = self.rect.collidelistall(buttons)
         for i in button_indices:
             buttons[i].press()
+        return(self.orit,self.idle)
     
 
     def draw(self, surface, camera):
@@ -347,7 +373,8 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         reset = True
-                        replay_reverse(screen, history, all_drawables, camera)
+                        active_ghosts = [g for g in [ghost1,ghost2] if g is not None]
+                        replay_reverse(screen, history, all_drawables, camera,player,active_ghosts)
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
@@ -408,7 +435,7 @@ def main():
             
             if ghost1: ghost1.draw(screen, camera)
             if ghost2: ghost2.draw(screen, camera)
-            player.draw(screen, camera)
+            history["animations"][frame] = player.draw(screen, camera)
             screen_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
             if ghost1 and not ghost1.disabled:
                 ghost1_screen_pos = camera.apply(ghost1.rect)

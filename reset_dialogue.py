@@ -2,49 +2,71 @@ from game_config import *
 import pygame
 
 
-def replay_reverse(screen, history, all_drawables, camera):
+def replay_reverse(screen, history, all_drawables, camera, player, ghosts=None):
     """
     Fast-forwards the current run's history in reverse.
-    Draws only the environment and the current run's path.
+    Draws the environment, the player's animations, and rewinds active ghosts.
     """
     if not history or not history["locations"]:
         return
 
-    # Speed of the rewind (frames skipped per update)
     REPLAY_SPEED = 1
-    # Get the frames in descending order for reverse playback
     loc_frames = sorted(history["locations"].keys(), reverse=True)
-    
     clock = pygame.time.Clock()
 
     i = 0
     while i < len(loc_frames):
         if i % 5 == 0:
             REPLAY_SPEED += 1
+            
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE: return
 
-        # Identify current frame and position
+        # Identify current frame and position for the Player
         frame = loc_frames[i]
         pos = history["locations"][frame]
+        orit, idle = history["animations"].get(frame, (2, True)) 
         
-        # Update camera to follow the rewind point
         rewind_rect = pygame.Rect(pos[0], pos[1], 40, 40)
         camera.update(type('obj', (object,), {'rect': rewind_rect}))
 
         screen.fill(BG_COLOR)
         
-        # Draw the world state exactly as it ended
+        # Draw the world state
         for obj in all_drawables:
             if camera.view_rect.colliderect(obj.rect):
                 obj.draw(screen, camera)
         
-        # Draw the "Rewind" indicator for the current run
-        # Using a bright color to distinguish it from a normal player
-        pygame.draw.rect(screen, (0, 255, 255), camera.apply(rewind_rect))
+        # --- DRAW REWINDING PLAYER ---
+        # 1. Select the correct animation set based on orientation
+        if orit == 0: bb = player.up
+        elif orit == 2: bb = player.down
+        else: bb = player.right
+        
+        # 2. Get the image and flip if facing left
+        img = bb[idle].get_image()
+        if orit == 1:
+            img = pygame.transform.flip(img, True, False)
+            
+        # 3. Blit the player image using your offset logic
+        drawn_rect = camera.apply(rewind_rect)
+        img_size = img.get_size()
+        screen.blit(img, (drawn_rect.x - img_size[0] / 4, drawn_rect.y - img_size[1] / 2))
+
+        # --- DRAW REWINDING GHOSTS ---
+        if ghosts:
+            for ghost in ghosts:
+                # Force the ghost's position and animation state to match the rewound frame
+                if ghost.sequence["locations"] and frame in ghost.sequence["locations"]:
+                    ghost.rect.topleft = ghost.sequence["locations"][frame]
+                if ghost.sequence["animations"] and frame in ghost.sequence["animations"]:
+                    ghost.orit, ghost.idle = ghost.sequence["animations"][frame]
+                
+                # Draw the ghost (this will use the tinting logic we added earlier)
+                ghost.draw(screen, camera)
 
         # Simple HUD overlay
         font = pygame.font.SysFont(None, 36)
