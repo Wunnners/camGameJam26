@@ -404,7 +404,7 @@ model = PPO.load("ai/modelSELF28/final", env=envs[1])
 def to_screen(pos, rid):
     p = envs[rid].to_screen(envs[rid].p[0].pos)
 
-def update_env(env: WorldEnv, rid):
+def update_env(env: WorldEnv, rid, left_clicked):
     keys = pygame.key.get_pressed()
     dx = 0
     dy = 0
@@ -416,13 +416,6 @@ def update_env(env: WorldEnv, rid):
         dx -= env.player_speed
     if keys[pygame.K_d]:
         dx += env.player_speed
-
-    left_clicked = False
-    for event in pygame.event.get():
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                left_clicked = True
-                break
 
     mouse_x, mouse_y = pygame.mouse.get_pos()
     center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
@@ -600,10 +593,15 @@ def main():
                 history["locations"][frame] = (player.rect.x, player.rect.y)
             
             # --- EVENTS ---
+            left_clicked = False
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                     reset = True
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        left_clicked = True
+                        break
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         play_music(WARP_MUSIC_PATH)
@@ -649,7 +647,7 @@ def main():
                         print((e.rect.centerx-room_tl[prid][0])/50-10, (e.rect.centery-room_tl[prid][1])/50-10)
                     envs[prid].set_pos([((e.rect.centerx-room_tl[prid][0])/50-10, (e.rect.centery-room_tl[prid][1])/50-10)
                                        for e in env_players[prid]])
-                update_env(envs[prid], prid)
+                update_env(envs[prid], prid, left_clicked)
             prid = tmprid
             
             for c in cannons:

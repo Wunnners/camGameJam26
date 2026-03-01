@@ -194,7 +194,7 @@ class WorldEnv(gym.Env):
 
         self.p[idx].pos += self.p[idx].vel
         # Clamp to arena
-        self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size+1, -1)
+        self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size+1.5, -1.5)
 
         # ===== Player Attack =====
         
