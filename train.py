@@ -42,7 +42,7 @@ class WrapperEnv(gym.Env):
         
         obs, reward, terminated, truncated, info = self.env.step(self.active_player, action1, action2)
         self.active_player ^= self.active_player
-        return obs[0], reward[0], terminated, truncated, info
+        return obs, reward, terminated, truncated, info
     
     def set_opponent(self, policy):
         self.opponent = policy
