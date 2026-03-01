@@ -11,6 +11,20 @@ from animation import *
 from enemy_basic import *
 from cannon import *
 
+from rl import WorldEnv
+from stable_baselines3 import PPO
+
+envs = {
+    1: WorldEnv(4),
+    5: WorldEnv(2),
+    6: WorldEnv(2),
+    7: WorldEnv(1),
+}
+room_tl = {
+    1: (17, 15),
+    5: (29, 31)
+}
+
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
     rect.x += dx
@@ -331,6 +345,7 @@ def main():
             ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1],buttons)
         camera = Camera()
         reset = False
+
         while not reset and running:
             frame += 1
             if ghost1: ghost1.update(frame, doors, cannons, player.rect) #note, update doesn't draw the ghost, that is further down
@@ -364,7 +379,7 @@ def main():
             # --- UPDATE ---
             player.move(buttons)
             camera.update(player)
-
+            print(player.rect.center)
             
             for c in cannons:
                 obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \

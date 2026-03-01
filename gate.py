@@ -14,6 +14,10 @@ bruh = {
     'M': 2,
     'N': 3,
     'L': 4,
+    # sus
+    'K': 0,
+    'I': 0,
+    'J': 0,
 }
 
 class GateButton:
