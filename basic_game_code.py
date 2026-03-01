@@ -26,17 +26,38 @@ def move_with_collision(rect, dx, dy, obstacles):
 
 # --- CLASSES ---
 class Camera:
-    def __init__(self):
+    def __init__(self, width=SCREEN_WIDTH, height=SCREEN_HEIGHT):
         self.offset = pygame.Vector2(0, 0)
+        self.width = width
+        self.height = height
+        self.view_rect = pygame.Rect(0, 0, self.width, self.height)
 
     def apply(self, target_rect):
         return target_rect.move(self.offset)
 
     def update(self, target):
-        x = -target.rect.centerx + int(SCREEN_WIDTH / 2)
-        y = -target.rect.centery + int(SCREEN_HEIGHT / 2)
+        x = -target.rect.centerx + int(self.width / 2)
+        y = -target.rect.centery + int(self.height / 2)
         self.offset = pygame.Vector2(x, y)
+        self.view_rect.center = target.rect.center
 
+def draw_mini_camera(main_screen, ghost, all_objects, screen_x, screen_y):
+    mini_size = 150
+    mini_surface = pygame.Surface((mini_size, mini_size))
+    mini_surface.fill(BG_COLOR) 
+
+    mini_camera = Camera(width=mini_size, height=mini_size)
+    mini_camera.update(ghost)
+
+    for obj in all_objects:
+        if mini_camera.view_rect.colliderect(obj.rect):
+            obj.draw(mini_surface, mini_camera)
+    
+    # 4. Draw a nice border around the mini-map so it pops
+    pygame.draw.rect(mini_surface, (255, 255, 255), mini_surface.get_rect(), 3)
+
+    # 5. Paste the mini_surface onto the main screen at the desired UI coordinates
+    main_screen.blit(mini_surface, (screen_x, screen_y))
 class Boundary:
     def __init__(self, x, y, w, h, color):
         self.color = color
@@ -211,11 +232,11 @@ def main():
         history = {"doors": {}, # doors: frame -> list of door indices toggled
                    "cShoot": {}, # cShoot: frame -> (cannon index, angle) for every cannon shot
                    "cannons": {}, # cannon: frame -> cannon index interacted with (or None)
+                   "animations": {}, # animations: frame -> list of animation types triggered (e.g. "cannon_shoot") for every frame that an animation is triggered (used for replaying cannon shoot animations since they don't have a physical representation like doors do)
                    "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
         walls, doors, waters, cannons, buttons, gates, enemies = [], [], [], [], [], [], []
         goal = None
         player = None
-        seq1, seq2 = None, None
         frame = 0
         
         # Load Level
@@ -287,6 +308,8 @@ def main():
                         interacted_cannon_index = player.interact_cannon()
                         if interacted_cannon_index is not None:
                             history["cannons"][frame] = interacted_cannon_index
+                    
+
 
             # --- UPDATE ---
             player.move(buttons)
@@ -324,21 +347,38 @@ def main():
             # --- DRAW ---
             screen.fill(BG_COLOR)
             # Draw everything in order
-            for obj in walls + waters + doors + buttons + gates:
-                obj.draw(screen, camera)
+            all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
             if goal:
-                goal.draw(screen, camera)
-            for obj in enemies + cannons:
-                obj.draw(screen, camera)
+                all_drawables.append(goal)
+            for obj in all_drawables:
+                if camera.view_rect.colliderect(obj.rect):
+                    obj.draw(screen, camera)
             
-            if seq1: ghost1.draw(screen, camera)
-            if seq2: ghost2.draw(screen, camera)
-            
+            if ghost1: ghost1.draw(screen, camera)
+            if ghost2: ghost2.draw(screen, camera)
             player.draw(screen, camera)
-            if ghost1:
-                ghost1.draw(screen, camera)
-            if ghost2:
-                ghost2.draw(screen, camera)
+            screen_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+            if ghost1 and not ghost1.disabled:
+                ghost1_screen_pos = camera.apply(ghost1.rect)
+                if not screen_rect.colliderect(ghost1_screen_pos): # If off-screen
+                    # Draw at the top left
+                    if ghost2:
+                        ghosts = [ghost1,ghost2]
+                    else:
+                        ghosts = [ghost1]
+                    draw_mini_camera(screen, ghost1, all_drawables + [player] + ghosts, 20, 20)
+
+            if ghost2 and not ghost2.disabled:
+                ghost2_screen_pos = camera.apply(ghost2.rect)
+                if not screen_rect.colliderect(ghost2_screen_pos): # If off-screen
+                    # Draw slightly below the first mini-camera
+                    if ghost1:
+                        ghosts = [ghost1,ghost2]
+                    else:
+                        ghosts = [ghost2]
+                    draw_mini_camera(screen, ghost2, all_drawables + [player] + ghosts, 20, 190)
+
+            
             pygame.display.flip()
             clock.tick(FPS)
             
