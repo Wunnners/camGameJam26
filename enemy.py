@@ -76,13 +76,16 @@ class Grunt(Enemy):
         self.last_attack_time = 0
         self.health = Health(50, self.rect)
 
-        sps = Spritesheet('assets/bh/Ninja Adventure - Asset Pack/Actor/Animals/Cat/Faceset.png')
-        self.a = (Animation(sps, 5, [0]),)
+    def is_active(self):
+        return self.health.current_hp <= 0
+    
+        
 
     def take_damage(self, amount):
         self.health.take_damage(amount)
     
     def update(self, player, obstacles):
+        return
         dx = player.rect.centerx - self.rect.centerx
         dy = player.rect.centery - self.rect.centery
         dist = math.hypot(dx, dy)
@@ -91,7 +94,7 @@ class Grunt(Enemy):
             vx = (dx / dist) * self.speed
             vy = (dy / dist) * self.speed
             
-            move_with_collision(self.rect, vx, vy, obstacles)
+            # move_with_collision(self.rect, vx, vy, obstacles)
 
         if self.rect.colliderect(player.rect):
             current_time = pygame.time.get_ticks()
@@ -100,8 +103,5 @@ class Grunt(Enemy):
                 self.last_attack_time = current_time
 
     def draw(self, surface, camera):
-        # pygame.draw.rect(surface, self.color, camera.apply(self.rect))
-        bruh = camera.apply(self.rect)
-        img = self.a[0].get_image()
-        # surface.blit(img, (bruh.x, bruh.y))
-        # self.health.draw(surface, camera)
+        pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+        self.health.draw(surface, camera)

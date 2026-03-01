@@ -10,8 +10,13 @@ from animation import *
 from enemy import Grunt
 
 # from enemy import *
+from enemy import Grunt
 from enemy_basic import *
 from cannon import *
+
+from rl import WorldEnv
+from stable_baselines3 import PPO
+import numpy as np
 
 WARP_MUSIC_PATH = "assets/warp.wav"
 NORMAL_MUSIC_PATH = "assets/normal.wav"
@@ -352,7 +357,7 @@ class Player:
     
 
     def draw(self, surface, camera):
-        if self.mounted_cannon: return 
+        if self.mounted_cannon: return (2, True)
         now = pygame.time.get_ticks()
         color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
         if self.orit == 0:
@@ -377,6 +382,105 @@ class Player:
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
         return (self.orit, self.idle)
+
+envs = {
+    1: WorldEnv(4),
+    4: WorldEnv(1)
+    # 5: WorldEnv(2),
+    # 6: WorldEnv(2),
+    # 7: WorldEnv(1),
+}
+room_tl = {
+    1: (17, 15),
+    4: (16, 31),
+    # 5: (29, 31),
+}
+for rid in room_tl:
+    room_tl[rid] = (room_tl[rid][0] * TILE_SIZE, room_tl[rid][1] * TILE_SIZE)
+env_players = {
+    1: [],
+    4: []
+    # 5: [],
+}
+model = PPO.load("ai/modelSELF28/final", env=envs[1])
+
+def to_screen(pos, rid):
+    p = envs[rid].to_screen(envs[rid].p[0].pos)
+
+def update_env(env: WorldEnv, rid, left_clicked):
+    keys = pygame.key.get_pressed()
+    dx = 0
+    dy = 0
+    if keys[pygame.K_w]:
+        dy -= env.player_speed
+    if keys[pygame.K_s]:
+        dy += env.player_speed
+    if keys[pygame.K_a]:
+        dx -= env.player_speed
+    if keys[pygame.K_d]:
+        dx += env.player_speed
+
+    mouse_x, mouse_y = pygame.mouse.get_pos()
+    center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+    angle = np.arctan2(mouse_y - center_y, mouse_x - center_x)
+    angle_diff = env._angle_diff(angle, env.p[0].angle)
+    angle_diff = np.clip(angle_diff, -1.0, 1.0)
+
+    right_pressed = pygame.mouse.get_pressed()[2]
+    shield = right_pressed
+    attack = 1 if left_clicked else 0
+    combat = 0
+    if shield:
+        combat = 1
+    elif attack:
+        combat = -1
+
+    env.player_action = [dx, dy, angle_diff, combat]
+    actions = [model.predict(env._get_obs(i), deterministic=False)[0] for i in range(1, env.n_players)]
+    env.step(0, env.player_action, actions)
+
+    for i in range(env.n_players):
+        # print(env.p[i].pos)
+        tmp = env.to_screen(env.p[i].pos)
+        tmp1 = room_tl[rid]
+        pos = (tmp[0]+tmp1[0], tmp[1]+tmp1[1])
+        env_players[rid][i].rect.centerx = pos[0]
+        env_players[rid][i].rect.centery = pos[1]
+
+def draw_ai(screen, camera, rid, idx, player_color):
+        env = envs[rid]
+        off = room_tl[rid]
+        if env.p[idx].health <= 0:
+            return
+
+        spos1 = env.to_screen(env.p[idx].pos)
+        spos = (off[0]+camera.offset.x+spos1[0], off[1]+camera.offset.y+spos1[1])
+        
+
+        # # draw player
+        # pygame.draw.circle(screen, player_color, spos, env.p[idx].radius * env.scale)
+
+        # draw attack
+        angle = env.p[idx].angle
+        ax = np.cos(angle)
+        ay = np.sin(angle)
+        if env.p[idx].attack:
+            pygame.draw.circle(screen, (255, 255, 0), (spos[0] + int(ax * 25), spos[1] + int(ay * 25)), 10)
+
+        # Draw attack direction
+        end_x = spos[0] + int(ax * 25)
+        end_y = spos[1] + int(ay * 25)
+        pygame.draw.line(screen, (255, 255, 0), spos, (end_x, end_y), 3)
+
+        # draw shieldd
+        if env.p[idx].shield:
+            offset = (env.p[idx].radius + 0.3) * env.scale
+            shield_rect = pygame.rect.Rect(spos[0] - offset, spos[1] - offset, 2 * offset, 2 * offset)
+            pygame.draw.arc(screen, player_color, shield_rect, -(angle + env.shield_angle), -(angle - env.shield_angle), 5)
+
+        # # Health bar
+        hpbar_top = 20 + 20 * idx
+        pygame.draw.rect(screen, player_color, (20, hpbar_top, 20 * env.p[idx].health, 10))
 
 # --- MAIN ---
 def main():
@@ -407,6 +511,8 @@ def main():
         goal = None
         player = None
         frame = 0
+
+        prid = -1
         
         # Load Level
         button_map: dict[str, list[GateButton]] = {}
@@ -421,10 +527,11 @@ def main():
                     if char not in room_info:
                         room_info[char] = []
                     room_info[char].append((x, y))
-                    walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                    if ord(char)-ord('0') not in room_tl:
+                        walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
-                elif char == "G": enemies.append(Basic(x, y))
+                elif char == "G": enemies.append(Grunt(x, y))
                 elif char == "T": 
                     cannon = Cannon(x,y)
                     cannon.index = len(cannons) # Store the index of this cannon for replay purposes
@@ -471,6 +578,19 @@ def main():
         if goal:
             all_drawables.append(goal)
         reset = False
+
+        for rid in env_players:
+            env_players[rid].clear()
+            env_players[rid].append(player)
+        # print(enemies)
+        for enemy in enemies:
+            rid = get_room(enemy, room_info)
+            env_players[rid].append(enemy)
+        # for rid in env_players:
+        #     print(rid, len(env_players[rid]))
+
+            
+
         trigger_rewind = False
         while not reset and running:
             frame += 1
@@ -481,10 +601,15 @@ def main():
                 history["locations"][frame] = (player.rect.x, player.rect.y)
             
             # --- EVENTS ---
+            left_clicked = False
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                     reset = True
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        left_clicked = True
+                        break
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         play_music(WARP_MUSIC_PATH)
@@ -518,7 +643,20 @@ def main():
 
             player.move(buttons)
             camera.update(player)
+            # print(player.rect.center)
 
+
+            tmprid = get_room(player, room_info)
+            if tmprid in room_tl:
+                if prid != tmprid:
+                    prid = tmprid
+                    print(env_players[prid])
+                    for e in env_players[prid]:
+                        print((e.rect.centerx-room_tl[prid][0])/50-10, (e.rect.centery-room_tl[prid][1])/50-10)
+                    envs[prid].set_pos([((e.rect.centerx-room_tl[prid][0])/50-10, (e.rect.centery-room_tl[prid][1])/50-10)
+                                       for e in env_players[prid]])
+                update_env(envs[prid], prid, left_clicked)
+            prid = tmprid
             
             for c in cannons:
                 obstacles = [w.rect for w in walls] + [d.rect for d in doors if not d.is_open] \
@@ -574,6 +712,10 @@ def main():
                     else:
                         ghosts = [ghost1]
                     draw_mini_camera(screen, ghost1, all_drawables + [player] + ghosts, 20, 20)
+            
+            if prid in room_tl:
+                for i in range(envs[prid].n_players):
+                    draw_ai(screen, camera, prid, i, (50, 150, 255) if i == 0 else (255, 80, 80))
 
             if ghost2 and not ghost2.disabled:
                 ghost2_screen_pos = camera.apply(ghost2.rect)

@@ -35,7 +35,10 @@ def replay_reverse(screen, history, all_drawables, camera, player, ghosts=None):
         # Identify current frame and position for the Player
         frame = loc_frames[i]
         pos = history["locations"][frame]
-        orit, idle = history["animations"].get(frame, (2, True)) 
+        if history["animations"].get(frame,None) is None:
+            orit,idle = 2, True
+        else:
+            orit, idle = history["animations"].get(frame, (2, True)) 
         
         rewind_rect = pygame.Rect(pos[0], pos[1], 40, 40)
         camera.update(type('obj', (object,), {'rect': rewind_rect}))
