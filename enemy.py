@@ -76,6 +76,9 @@ class Grunt(Enemy):
         self.last_attack_time = 0
         self.health = Health(50, self.rect)
 
+    def is_active(self):
+        return self.health.current_hp <= 0
+    
     def take_damage(self, amount):
         self.health.take_damage(amount)
     
