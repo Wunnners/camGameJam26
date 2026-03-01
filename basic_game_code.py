@@ -7,6 +7,7 @@ from music_select import play_music, loop_music
 from gate import *
 from ss import *
 from animation import *
+from enemy import Grunt
 
 # from enemy import *
 from enemy_basic import *
@@ -444,7 +445,7 @@ def main():
                         gate_map[char].append((x, y))
                 elif char.lower() >= 'q':
                     if char.islower():
-                        enemy = Basic(x, y)
+                        enemy = Grunt(x, y)
                         enemies.append(enemy)
                         if char not in button_map: button_map[char] = []
                         button_map[char].append(enemy)
