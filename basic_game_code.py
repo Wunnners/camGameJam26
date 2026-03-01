@@ -369,14 +369,25 @@ def main():
                 elif char.lower() == "d":
                     orientation = "vertical" if char.isupper() else "horizontal"
                     doors.append(Door(x, y, orientation))
-                elif char.islower():
-                    button = GateButton(x, y, char.lower())
-                    if char not in button_map: button_map[char] = []
-                    button_map[char].append(button)
-                    buttons.append(button)
-                elif char.isupper():
-                    if char not in gate_map: gate_map[char] = []
-                    gate_map[char].append((x, y))
+                elif char.lower() < 'q':
+                    if char.islower():
+                        button = GateButton(x, y, char.lower())
+                        if char not in button_map: button_map[char] = []
+                        button_map[char].append(button)
+                        buttons.append(button)
+                    else:
+                        if char not in gate_map: gate_map[char] = []
+                        gate_map[char].append((x, y))
+                elif char.lower() >= 'q':
+                    if char.islower():
+                        enemy = Basic(x, y)
+                        enemies.append(enemy)
+                        if char not in button_map: button_map[char] = []
+                        button_map[char].append(enemy)
+                    else:
+                        if char not in gate_map: gate_map[char] = []
+                        gate_map[char].append((x, y))
+                    
         for gate_char in gate_map:
             for gate_pos in gate_map[gate_char]:
                 gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())

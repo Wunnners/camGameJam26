@@ -94,6 +94,9 @@ class Basic(Enemy):
         self.last_start_tile = None
         self.stuck_frames = 0
 
+    def is_active(self):
+        return self.health.current_hp <= 0
+    
     def take_damage(self, amount):
         self.health.take_damage(amount)
 
