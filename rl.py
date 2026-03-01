@@ -24,13 +24,14 @@ class WorldEnv(gym.Env):
     
     player_speed = 1
 
-    def __init__(self, n_agents=1, render_mode="human"):
+    def __init__(self, n_agents=1, size=(8,8), render_mode="human"):
         super().__init__()
         self.render_mode = render_mode
         self.window = None
 
         # ===== Environment Parameters =====
         self.n_players = n_agents + 1
+        self.size = size
         self.arena_size = 10.0
         # self.scale = self.window_size // (self.arena_size * 2)
         self.scale = 50
@@ -42,7 +43,7 @@ class WorldEnv(gym.Env):
         self.shield_angle = np.pi / 4
         self.shield_slowdown = 0.5
         self.shield_cd = 0.5
-        self.shield_broken_cd = 2.0
+        self.shield_broken_cd = 1.5
         self.shield_atk_cd = 0.1
         self.shield_start_cd = 0.5
         self.dt = 1 / 60
@@ -82,8 +83,8 @@ class WorldEnv(gym.Env):
                 self.atk_cd, # p1 atk cd
                 self.max_health, # p0 health
                 self.max_health, # p1 health
-                self.shield_broken_cd, # p0 shield cd
-                self.shield_broken_cd, # p1 shield cd
+                2.0, # p0 shield broken cd
+                2.0, # p1 shield broken cd
                 self.shield_start_cd, # p1 shield start cd
                 self.shield_start_cd, # p1 shield start cd
                 1.0, # p0 shield
@@ -149,7 +150,7 @@ class WorldEnv(gym.Env):
         return np.arctan2(dy, dx)
 
     def update_player(self, idx, action):
-        if (self.p[idx].health <= 0): return
+        if (self.p[idx].health <= 0): return self._get_obs(idx), [0, 0], False, False, {}
 
         opidx = 0 if idx >= 1 else idx ^ 1
         ridx = 0 if idx == 0 else 1
@@ -196,8 +197,8 @@ class WorldEnv(gym.Env):
 
         self.p[idx].pos += self.p[idx].vel
         # Clamp to arena
-        self.p[idx].pos[0] = np.clip(self.p[idx].pos[0], -self.arena_size, -1)
-        self.p[idx].pos[1] = np.clip(self.p[idx].pos[1], -self.arena_size, -1)
+        self.p[idx].pos[0] = np.clip(self.p[idx].pos[0], -self.arena_size, -self.arena_size + self.size[0] + 1)
+        self.p[idx].pos[1] = np.clip(self.p[idx].pos[1], -self.arena_size, -self.arena_size + self.size[1] + 1)
 
         # ===== Player Attack =====
         
