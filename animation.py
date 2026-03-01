@@ -7,7 +7,9 @@ class Animation:
         for i in indices:
             self.images.append(sp.get_image_idx(i))
 
-    def get_image(self):
+    def get_image(self, over=-1):
+        if over != -1:
+            return self.images[over]
         i = self.images[(self.tick // self.tr) % len(self.images)]
         self.tick += 1
         return i

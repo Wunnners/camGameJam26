@@ -16,6 +16,29 @@ WARP_MUSIC_PATH = "assets/warp.wav"
 NORMAL_MUSIC_PATH = "assets/normal.wav"
 INTENSE_MUSIC_PATH = "assets/intense.wav"
 
+sps9, tilea = None, None
+
+def drawtiles(surface, p, cam):
+    global sps9, tilea
+    screen_pos = cam.apply(p)
+    if sps9 is None:
+        sps9 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        tilea = (
+        Animation(sps9, 5, list(range(256))),
+        )
+    rx = (p.x // TILE_SIZE) * TILE_SIZE
+    ry = (p.y // TILE_SIZE) * TILE_SIZE
+    screen_pos = cam.apply(pygame.Rect(rx, ry, 0, 0))
+    wx = screen_pos.x
+    wy = screen_pos.y
+    for x in range(-30, 30):
+        for y in range(-20, 20):
+            xx = x + (p.x // TILE_SIZE)
+            yy = y + (p.y // TILE_SIZE)
+            img = tilea[0].get_image((xx + 377 * yy + 3 * xx * xx) % 256)
+            img = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+            surface.blit(img, (wx + x * TILE_SIZE, wy + y * TILE_SIZE))
+
 def get_room(player, room_info) -> int:
     """
     Determines which room the player is in based on their center point.
@@ -482,6 +505,7 @@ def main():
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
+            drawtiles(screen, player.rect, camera)
             # Draw everything in order
             all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
             if goal:
