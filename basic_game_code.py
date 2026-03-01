@@ -348,6 +348,8 @@ def main():
                     if event.key == pygame.K_r:
                         reset = True
                         replay_reverse(screen, history, all_drawables, camera)
+                        save_menu(screen, history, saved_slots)
+                        history = None
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors

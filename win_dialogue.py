@@ -40,7 +40,7 @@ def win_menu(screen):
     font = pygame.font.SysFont(None, 64)
     small_font = pygame.font.SysFont(None, 32)
     title_surf = font.render("You Win", True, (255, 255, 255))
-    prompt_surf = small_font.render("Press Enter to go back to level selection", True, (220, 220, 220))
+    prompt_surf = small_font.render("Press Enter, Space, or click to continue", True, (220, 220, 220))
 
     center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
     screen.blit(title_surf, (center_x - title_surf.get_width() // 2, center_y - 50))
@@ -51,6 +51,12 @@ def win_menu(screen):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                return True
+            if event.type == pygame.KEYDOWN and event.key in (
+                pygame.K_RETURN,
+                pygame.K_KP_ENTER,
+                pygame.K_SPACE,
+            ):
                 return True
         clock.tick(60)
