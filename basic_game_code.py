@@ -44,22 +44,25 @@ class Camera:
         self.view_rect.center = target.rect.center
 
 def draw_mini_camera(main_screen, ghost, all_objects, screen_x, screen_y):
-    mini_size = 150
-    mini_surface = pygame.Surface((mini_size, mini_size))
+    capture_size = MINICAM_CAPTURE_SIZE
+
+    display_size = MINICAM_DISPLAY_SIZE
+    mini_surface = pygame.Surface((capture_size, capture_size))
     mini_surface.fill(BG_COLOR) 
 
-    mini_camera = Camera(width=mini_size, height=mini_size)
+    mini_camera = Camera(width=capture_size, height=capture_size)
     mini_camera.update(ghost)
 
     for obj in all_objects:
         if mini_camera.view_rect.colliderect(obj.rect):
             obj.draw(mini_surface, mini_camera)
     
+    scaled_surface = pygame.transform.smoothscale(mini_surface, (display_size, display_size))
     # 4. Draw a nice border around the mini-map so it pops
-    pygame.draw.rect(mini_surface, (255, 255, 255), mini_surface.get_rect(), 3)
+    pygame.draw.rect(scaled_surface, (255, 255, 255), scaled_surface.get_rect(), 3)
 
     # 5. Paste the mini_surface onto the main screen at the desired UI coordinates
-    main_screen.blit(mini_surface, (screen_x, screen_y))
+    main_screen.blit(scaled_surface, (screen_x, screen_y))
 class Boundary:
     def __init__(self, x, y, w, h, color):
         self.color = color
@@ -156,6 +159,9 @@ class Player:
     def take_damage(self, amount):
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
+
+    # def get_animation_state(self):
+    #     return (self.orit, self.idle)
     
     def handle_door_interact(self):
         """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -258,6 +264,7 @@ class Player:
         # pygame.dr
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
+        return (self.orit, self.idle)
 
 # --- MAIN ---
 def main():
@@ -421,7 +428,7 @@ def main():
                         ghosts = [ghost1,ghost2]
                     else:
                         ghosts = [ghost2]
-                    draw_mini_camera(screen, ghost2, all_drawables + [player] + ghosts, 20, 190)
+                    draw_mini_camera(screen, ghost2, all_drawables + [player] + ghosts, 20, 40 + MINICAM_DISPLAY_SIZE)
 
             
             pygame.display.flip()
