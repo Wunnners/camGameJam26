@@ -254,11 +254,8 @@ def main():
                     cannons.append(cannon)
                 elif char == "P": player_start_pos = (x, y)
                 elif char == "S": goal = Goal(x, y)
-                elif char == "D":
-                    orientation = "vertical"
-                    if 0 < c < len(row) - 1:
-                        if LEVEL_MAP[r][c-1] == "W" and LEVEL_MAP[r][c+1] == "W":
-                            orientation = "horizontal"
+                elif char.lower() == "d":
+                    orientation = "vertical" if char.isupper() else "horizontal"
                     doors.append(Door(x, y, orientation))
                 elif char.islower():
                     button = GateButton(x, y, char.lower())
@@ -340,7 +337,9 @@ def main():
                 if e.health.is_dead: enemies.remove(e)
 
             if goal and player.rect.colliderect(goal.rect):
-                running = win_menu(screen)
+                win_menu(screen)
+                history = None
+                running = False
                 reset = True
                 continue
 
