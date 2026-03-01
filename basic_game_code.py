@@ -16,6 +16,34 @@ WARP_MUSIC_PATH = "assets/warp.wav"
 NORMAL_MUSIC_PATH = "assets/normal.wav"
 INTENSE_MUSIC_PATH = "assets/intense.wav"
 
+def get_room(player, room_info) -> int:
+    """
+    Determines which room the player is in based on their center point.
+    Returns the integer room ID (0-7) or -1 if in a corridor.
+    """
+    player_center = player.rect.center
+    
+    for room_id_str, coords in room_info.items():
+        if not coords:
+            continue
+            
+        # Find the boundaries of the room based on the digit positions
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_y = min(c[1] for c in coords)
+        max_y = max(c[1] for c in coords)
+        
+        # Create a Rect covering the room (including the tiles the digits were on)
+        room_rect = pygame.Rect(min_x, min_y, 
+                                max_x - min_x + TILE_SIZE, 
+                                max_y - min_y + TILE_SIZE)
+        
+        if room_rect.collidepoint(player_center):
+            return int(room_id_str)
+            
+    return -1 # Not in a numbered room (Alleyway)
+
+
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
     rect.x += dx
@@ -331,10 +359,16 @@ def main():
         # Load Level
         button_map: dict[str, list[GateButton]] = {}
         gate_map: dict[str, list[tuple]] = {}
+        room_info: dict[str, tuple] = {}
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                if char.isdigit():
+                    if char not in room_info:
+                        room_info[char] = []
+                    room_info[char].append((x, y))
+                    walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                elif char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Basic(x, y))
                 elif char == "T": 
