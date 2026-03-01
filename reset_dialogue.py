@@ -2,6 +2,59 @@ from game_config import *
 import pygame
 
 
+def replay_reverse(screen, history, all_drawables, camera):
+    """
+    Fast-forwards the current run's history in reverse.
+    Draws only the environment and the current run's path.
+    """
+    if not history or not history["locations"]:
+        return
+
+    # Speed of the rewind (frames skipped per update)
+    REPLAY_SPEED = 1
+    # Get the frames in descending order for reverse playback
+    loc_frames = sorted(history["locations"].keys(), reverse=True)
+    
+    clock = pygame.time.Clock()
+
+    i = 0
+    while i < len(loc_frames):
+        if i % 10 == 0:
+            REPLAY_SPEED += 1
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE: return
+
+        # Identify current frame and position
+        frame = loc_frames[i]
+        pos = history["locations"][frame]
+        
+        # Update camera to follow the rewind point
+        rewind_rect = pygame.Rect(pos[0], pos[1], 40, 40)
+        camera.update(type('obj', (object,), {'rect': rewind_rect}))
+
+        screen.fill(BG_COLOR)
+        
+        # Draw the world state exactly as it ended
+        for obj in all_drawables:
+            if camera.view_rect.colliderect(obj.rect):
+                obj.draw(screen, camera)
+        
+        # Draw the "Rewind" indicator for the current run
+        # Using a bright color to distinguish it from a normal player
+        pygame.draw.rect(screen, (0, 255, 255), camera.apply(rewind_rect))
+
+        # Simple HUD overlay
+        font = pygame.font.SysFont(None, 36)
+        text = font.render("REWINDING CURRENT RUN...", True, (255, 50, 50))
+        screen.blit(text, (20, 20))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+        i += REPLAY_SPEED
+
 def save_menu(screen, history, saved_slots):
     """
     Displays a save menu over the current screen.
