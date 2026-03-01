@@ -1,9 +1,11 @@
 import pygame
 import math
 from game_config import *
-from reset_dialogue import save_menu
+from reset_dialogue import *
 from win_dialogue import win_menu
 from gate import *
+from ss import *
+from animation import *
 
 # from enemy import *
 from enemy_basic import *
@@ -146,6 +148,13 @@ class Player:
         self.boundary = boundary 
         self.doors = doors
         self.gates = gates
+        self.orit = 0 # [0=w, 1=a, 2=s, 3=d]
+        self.idle = True
+        
+        sps = Spritesheet('assets/Players/Dwarf/dwarf x4.png', 128)
+        self.down = (Animation(sps, 5, [15, 16, 17, 18]), Animation(sps, 5, [2]))
+        self.right = (Animation(sps, 5, [5, 6, 7, 8]), Animation(sps, 5, [0]))
+        self.up = (Animation(sps, 5, [10, 11, 12, 13]), Animation(sps, 5, [1]))
 
     def take_damage(self, amount):
         self.health.take_damage(amount)
@@ -193,14 +202,32 @@ class Player:
         if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
-        if keys[pygame.K_LEFT]:  dx -= 1
-        if keys[pygame.K_RIGHT]: dx += 1
-        if keys[pygame.K_UP]:    dy -= 1
-        if keys[pygame.K_DOWN]:  dy += 1
+        # if keys[pygame.K_LEFT]:  dx -= 1
+        # if keys[pygame.K_RIGHT]: dx += 1
+        # if keys[pygame.K_UP]:    dy -= 1
+        # if keys[pygame.K_DOWN]:  dy += 1
+
+        if keys[pygame.K_w]:
+            dy -= 1
+            self.orit = 0
+        if keys[pygame.K_a]:
+            dx -= 1
+            self.orit = 1
+        if keys[pygame.K_s]:
+            dy += 1
+            self.orit = 2
+        if keys[pygame.K_d]:
+            dx += 1
+            self.orit = 3
 
         if dx != 0 and dy != 0:
             factor = 1 / math.sqrt(2)
             dx, dy = dx * factor, dy * factor
+
+        if dx == 0 and dy == 0:
+            self.idle = True
+        else:
+            self.idle = False
 
         obstacles = [w.rect for w in self.boundary] + \
         [d.rect for d in self.doors if not d.is_open] + \
@@ -215,7 +242,24 @@ class Player:
         if self.mounted_cannon: return 
         now = pygame.time.get_ticks()
         color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
-        pygame.draw.rect(surface, color, camera.apply(self.rect))
+        if self.orit == 0:
+            bb = self.up
+        elif self.orit == 2:
+            bb = self.down
+        else:
+            bb = self.right
+        img = bb[self.idle].get_image()
+        if self.orit == 1:
+            img = pygame.transform.flip(img, 1, 0)
+        bruh = camera.apply(self.rect)
+        # surface.blit(img, (0, 0))
+        pp = img.get_size()
+        # print(pp)
+        surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
+        # surface.blit(img, (bruh.x, bruh.y))
+        # surface.blit(img, (bruh.x - bruh.w, bruh.y - bruh.h))
+        # pygame.dr
+        # pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
 
 # --- MAIN ---
@@ -272,6 +316,7 @@ def main():
             for gate_pos in gate_map[gate_char]:
                 gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())
                 gates.append(gate)
+        
         player = Player(*player_start_pos, walls + waters, doors, cannons, gates)
         ghost1 = None
         ghost2 = None
@@ -298,6 +343,7 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         reset = True
+                        replay_reverse(screen, history, all_drawables, camera)
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
