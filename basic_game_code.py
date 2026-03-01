@@ -2,9 +2,11 @@ import pygame
 import math
 from game_config import *
 from reset_dialogue import save_menu
+from win_dialogue import win_menu
 from gate import *
 
-from enemy import *
+# from enemy import *
+from enemy_basic import *
 from cannon import *
 
 def move_with_collision(rect, dx, dy, obstacles):
@@ -41,6 +43,14 @@ class Boundary:
         self.rect = pygame.Rect(x, y, w, h)
     def draw(self, surface, camera):
         pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+
+
+class Goal:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
+
+    def draw(self, surface, camera):
+        pygame.draw.rect(surface, (220, 200, 40), camera.apply(self.rect))
 
 
 class Door:
@@ -203,6 +213,7 @@ def main():
                    "cannons": {}, # cannon: frame -> cannon index interacted with (or None)
                    "locations": {}} #locations: frame -> (player_x, player_y) for every locationInterval frames (look in config)
         walls, doors, waters, cannons, buttons, gates, enemies = [], [], [], [], [], [], []
+        goal = None
         player = None
         seq1, seq2 = None, None
         frame = 0
@@ -215,12 +226,13 @@ def main():
                 x, y = c * TILE_SIZE, r * TILE_SIZE
                 if char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
-                elif char == "G": enemies.append(Grunt(x, y))
+                elif char == "G": enemies.append(Basic(x, y))
                 elif char == "T": 
                     cannon = Cannon(x,y)
                     cannon.index = len(cannons) # Store the index of this cannon for replay purposes
                     cannons.append(cannon)
                 elif char == "P": player_start_pos = (x, y)
+                elif char == "S": goal = Goal(x, y)
                 elif char == "D":
                     orientation = "vertical"
                     if 0 < c < len(row) - 1:
@@ -295,14 +307,28 @@ def main():
                     history["cShoot"][frame] = val
 
             for e in enemies:
-                obstacles = [w.rect for w in (waters + walls)] + [d.rect for d in doors if not d.is_open] + [g.rect for g in gates if not g.is_open]
-                e.update(player, obstacles)
+                nav_data = {
+                    "level_map": LEVEL_MAP,
+                    "boundaries": [w.rect for w in (waters + walls)],
+                    "doors": doors,
+                    "gates": gates,
+                }
+                e.update(player, nav_data)
                 if e.health.is_dead: enemies.remove(e)
+
+            if goal and player.rect.colliderect(goal.rect):
+                running = win_menu(screen)
+                reset = True
+                continue
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
             # Draw everything in order
-            for obj in walls + waters + doors + buttons + gates + enemies + cannons:
+            for obj in walls + waters + doors + buttons + gates:
+                obj.draw(screen, camera)
+            if goal:
+                goal.draw(screen, camera)
+            for obj in enemies + cannons:
                 obj.draw(screen, camera)
             
             if seq1: ghost1.draw(screen, camera)
