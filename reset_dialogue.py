@@ -11,13 +11,16 @@ def replay_reverse(screen, history, all_drawables, camera):
         return
 
     # Speed of the rewind (frames skipped per update)
-    REPLAY_SPEED = 8 
+    REPLAY_SPEED = 1
     # Get the frames in descending order for reverse playback
     loc_frames = sorted(history["locations"].keys(), reverse=True)
     
     clock = pygame.time.Clock()
 
-    for i in range(0, len(loc_frames), REPLAY_SPEED):
+    i = 0
+    while i < len(loc_frames):
+        if i % 10 == 0:
+            REPLAY_SPEED += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); exit()
@@ -50,6 +53,7 @@ def replay_reverse(screen, history, all_drawables, camera):
 
         pygame.display.flip()
         clock.tick(FPS)
+        i += REPLAY_SPEED
 
 def save_menu(screen, history, saved_slots):
     """
