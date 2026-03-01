@@ -1,7 +1,7 @@
 import pygame
 import math
 from game_config import *
-from reset_dialogue import save_menu
+from reset_dialogue import *
 from win_dialogue import win_menu
 from gate import *
 
@@ -269,6 +269,7 @@ def main():
             for gate_pos in gate_map[gate_char]:
                 gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())
                 gates.append(gate)
+        
         player = Player(*player_start_pos, walls + waters, doors, cannons, gates)
         ghost1 = None
         ghost2 = None
@@ -295,6 +296,7 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         reset = True
+                        replay_reverse(screen, history, all_drawables, camera)
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
