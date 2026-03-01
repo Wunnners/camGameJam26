@@ -67,7 +67,34 @@ class Boundary:
     def __init__(self, x, y, w, h, color):
         self.color = color
         self.rect = pygame.Rect(x, y, w, h)
+
+        # sps = Spritesheet('assets/ss/dungeon_ v1.0/dungeon_.png', 8)
+        # self.a = (
+        #     Animation(sps, 5, [64]),
+        # )
+
+        sps1 = Spritesheet('assets/ppp/Texture/TX Tileset Wall.png', 32)
+        sps2 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        sps3 = Spritesheet('assets/Water+.png', 16)
+        self.a = (
+            Animation(sps1, 5, [22 + 16]),
+            Animation(sps2, 5, [21]),
+            Animation(sps3, 60, [2, 3, 4]),
+            # Animation(sps3, 800, [5, 6]),
+        )
     def draw(self, surface, camera):
+        if self.color == WALL_COLOR:
+            img = self.a[0].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
+        if self.color == WATER_COLOR:
+            img = self.a[2].get_image()
+            bruh = camera.apply(self.rect)
+            # surface.blit(pygame.transform.scale(img, self.rect.size), self.rect)
+            surface.blit(pygame.transform.scale(img, bruh.size), bruh)
+            return
         pygame.draw.rect(surface, self.color, camera.apply(self.rect))
 
 
