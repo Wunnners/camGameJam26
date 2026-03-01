@@ -434,7 +434,7 @@ def main():
                 elif char.lower() == "d":
                     orientation = "vertical" if char.isupper() else "horizontal"
                     doors.append(Door(x, y, orientation))
-                elif char.lower() < 'q':
+                elif char.isalnum() and char.lower() < 'q':
                     if char.islower():
                         button = GateButton(x, y, char.lower())
                         if char not in button_map: button_map[char] = []
@@ -443,7 +443,7 @@ def main():
                     else:
                         if char not in gate_map: gate_map[char] = []
                         gate_map[char].append((x, y))
-                elif char.lower() >= 'q':
+                elif char.isalnum() and char.lower() >= 'q':
                     if char.islower():
                         enemy = Grunt(x, y)
                         enemies.append(enemy)
