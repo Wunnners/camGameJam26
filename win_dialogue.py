@@ -30,6 +30,7 @@ def mark_selected_level_completed():
 
 def win_menu(screen):
     mark_selected_level_completed()
+    clock = pygame.time.Clock()
 
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     overlay.set_alpha(180)
@@ -52,3 +53,4 @@ def win_menu(screen):
                 return False
             if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 return True
+        clock.tick(60)
