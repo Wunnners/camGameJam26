@@ -5,6 +5,8 @@ import pygame
 
 from enemy import Enemy, Health, move_with_collision
 from game_config import TILE_SIZE
+from ss import *
+from animation import *
 
 
 def _world_to_tile(point):
@@ -94,6 +96,13 @@ class Basic(Enemy):
         self.last_start_tile = None
         self.stuck_frames = 0
 
+        # sps = Spritesheet('assets/bh/Ninja Adventure - Asset Pack/Actor/Animals/Cat/Faceset.png', 32)
+        sps = Spritesheet('assets/bh/Ninja Adventure - Asset Pack/Actor/Characters/Cavegirl/SpriteSheet.png', 16)
+        self.a = (Animation(sps, 5, [0]),)
+
+    def is_active(self):
+        return self.health.current_hp <= 0
+    
     def take_damage(self, amount):
         self.health.take_damage(amount)
 
@@ -212,5 +221,9 @@ class Basic(Enemy):
                 self.last_attack_time = current_time
 
     def draw(self, surface, camera):
-        pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+        # pygame.draw.rect(surface, self.color, camera.apply(self.rect))
+        bruh = camera.apply(self.rect)
+        img = self.a[0].get_image()
+        # surface.blit(img, (bruh.x, bruh.y))
+        surface.blit(pygame.transform.scale(img, bruh.size), (bruh.x, bruh.y))
         self.health.draw(surface, camera)

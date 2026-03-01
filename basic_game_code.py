@@ -3,9 +3,11 @@ import math
 from game_config import *
 from reset_dialogue import *
 from win_dialogue import win_menu
+from music_select import play_music, loop_music
 from gate import *
 from ss import *
 from animation import *
+from enemy import Grunt
 
 # from enemy import *
 from enemy import Grunt
@@ -15,6 +17,33 @@ from cannon import *
 from rl import WorldEnv
 from stable_baselines3 import PPO
 import numpy as np
+
+WARP_MUSIC_PATH = "assets/warp.wav"
+NORMAL_MUSIC_PATH = "assets/normal.wav"
+INTENSE_MUSIC_PATH = "assets/intense.wav"
+
+sps9, tilea = None, None
+
+def drawtiles(surface, p, cam):
+    global sps9, tilea
+    screen_pos = cam.apply(p)
+    if sps9 is None:
+        sps9 = Spritesheet('assets/ppp/Texture/TX Tileset Grass.png', 16)
+        tilea = (
+        Animation(sps9, 5, list(range(256))),
+        )
+    rx = (p.x // TILE_SIZE) * TILE_SIZE
+    ry = (p.y // TILE_SIZE) * TILE_SIZE
+    screen_pos = cam.apply(pygame.Rect(rx, ry, 0, 0))
+    wx = screen_pos.x
+    wy = screen_pos.y
+    for x in range(-30, 30):
+        for y in range(-20, 20):
+            xx = x + (p.x // TILE_SIZE)
+            yy = y + (p.y // TILE_SIZE)
+            img = tilea[0].get_image((xx + 377 * yy + 3 * xx * xx) % 256)
+            img = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+            surface.blit(img, (wx + x * TILE_SIZE, wy + y * TILE_SIZE))
 
 def get_room(player, room_info) -> int:
     """
@@ -166,12 +195,41 @@ class Ghost:
         self.disabled = False
         self.sequence = sequence
         self.buttons = buttons
+        sps = Spritesheet('assets/Players/Dwarf/dwarf x4.png', 128)
+        self.down = (Animation(sps, 5, [15, 16, 17, 18]), Animation(sps, 5, [2]))
+        self.right = (Animation(sps, 5, [5, 6, 7, 8]), Animation(sps, 5, [0]))
+        self.up = (Animation(sps, 5, [10, 11, 12, 13]), Animation(sps, 5, [1]))
+
+        self.orit = 2
+        self.idle = True
     
     def draw(self, surface, camera):
         if self.disabled:
             return
-        color = (255, 0, 255)
-        pygame.draw.rect(surface, color, camera.apply(self.rect))
+
+        # 1. Pick the correct animation set
+        if self.orit == 0: bb = self.up
+        elif self.orit == 2: bb = self.down
+        else: bb = self.right
+        
+        # 2. Get the raw image
+        img = bb[self.idle].get_image().copy() # Copy so we don't tint the original
+        if self.orit == 1:
+            img = pygame.transform.flip(img, True, False)
+
+        # 3. Apply "Ghost" Tint (Grey/Blue tint)
+        # This fills the non-transparent parts of the sprite with a color
+        tint = pygame.Surface(img.get_size(), pygame.SRCALPHA)
+        tint.fill((200, 200, 200, 150)) # Grey-blue with some alpha
+        img.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        
+        # Optional: Set overall transparency
+        img.set_alpha(180) 
+
+        # 4. Blit to screen
+        screen_pos = camera.apply(self.rect)
+        img_size = img.get_size()
+        surface.blit(img, (screen_pos.x - img_size[0] / 4, screen_pos.y - img_size[1] / 2))
 
     def toggle_draw(self):
         self.disabled = not self.disabled
@@ -197,6 +255,9 @@ class Ghost:
         button_indices = self.rect.collidelistall(self.buttons)
         for i in button_indices:
             self.buttons[i].press()
+        if self.sequence["animations"] and frame in self.sequence["animations"]:
+            self.orit,self.idle = self.sequence["animations"][frame]
+
 
 class Player:
     def __init__(self, x, y, boundary, doors, cannons, gates):
@@ -219,9 +280,6 @@ class Player:
     def take_damage(self, amount):
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
-
-    # def get_animation_state(self):
-    #     return (self.orit, self.idle)
     
     def handle_door_interact(self):
         """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -265,10 +323,6 @@ class Player:
         if self.mounted_cannon: return
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
-        # if keys[pygame.K_LEFT]:  dx -= 1
-        # if keys[pygame.K_RIGHT]: dx += 1
-        # if keys[pygame.K_UP]:    dy -= 1
-        # if keys[pygame.K_DOWN]:  dy += 1
 
         if keys[pygame.K_w]:
             dy -= 1
@@ -299,6 +353,7 @@ class Player:
         button_indices = self.rect.collidelistall(buttons)
         for i in button_indices:
             buttons[i].press()
+        return(self.orit,self.idle)
     
 
     def draw(self, surface, camera):
@@ -318,8 +373,10 @@ class Player:
         # surface.blit(img, (0, 0))
         pp = img.get_size()
         # print(pp)
-        surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
-        # surface.blit(img, (bruh.x, bruh.y))
+        # surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
+        surface.blit(img, (bruh.x - pp[0] / 4 - 5, bruh.y - pp[1] / 2 - 20))
+        # print(bruh, pp)
+        # surface.blit(pygame.transform.scale(img, bruh.size), (bruh.x, bruh.y))
         # surface.blit(img, (bruh.x - bruh.w, bruh.y - bruh.h))
         # pygame.dr
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
@@ -435,8 +492,14 @@ def main():
     running = True
     saved_slots = [None, None]
     history = None
+    warped_once = False
 
     while running:
+        if warped_once:
+            loop_music(INTENSE_MUSIC_PATH)
+        else:
+            loop_music(NORMAL_MUSIC_PATH)
+
         if history:
             save_menu(screen,history,saved_slots)
         history = {"doors": {}, # doors: frame -> list of door indices toggled
@@ -458,7 +521,9 @@ def main():
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char.isdigit():
+                if char == '.':
+                    continue
+                elif char.isdigit():
                     if char not in room_info:
                         room_info[char] = []
                     room_info[char].append((x, y))
@@ -475,14 +540,25 @@ def main():
                 elif char.lower() == "d":
                     orientation = "vertical" if char.isupper() else "horizontal"
                     doors.append(Door(x, y, orientation))
-                elif char.islower():
-                    button = GateButton(x, y, char.lower())
-                    if char not in button_map: button_map[char] = []
-                    button_map[char].append(button)
-                    buttons.append(button)
-                elif char.isupper():
-                    if char not in gate_map: gate_map[char] = []
-                    gate_map[char].append((x, y))
+                elif char.isalnum() and char.lower() < 'q':
+                    if char.islower():
+                        button = GateButton(x, y, char.lower())
+                        if char not in button_map: button_map[char] = []
+                        button_map[char].append(button)
+                        buttons.append(button)
+                    else:
+                        if char not in gate_map: gate_map[char] = []
+                        gate_map[char].append((x, y))
+                elif char.isalnum() and char.lower() >= 'q':
+                    if char.islower():
+                        enemy = Grunt(x, y)
+                        enemies.append(enemy)
+                        if char not in button_map: button_map[char] = []
+                        button_map[char].append(enemy)
+                    else:
+                        if char not in gate_map: gate_map[char] = []
+                        gate_map[char].append((x, y))
+                    
         for gate_char in gate_map:
             for gate_pos in gate_map[gate_char]:
                 gate = Gate(*gate_pos, button_map[gate_char.lower()], gate_char.lower())
@@ -497,6 +573,9 @@ def main():
         if saved_slots[1]:
             ghost2 = Ghost(*saved_slots[1]["locations"][1], saved_slots[1],buttons)
         camera = Camera()
+        all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
+        if goal:
+            all_drawables.append(goal)
         reset = False
 
         for rid in env_players:
@@ -511,6 +590,7 @@ def main():
 
             
 
+        trigger_rewind = False
         while not reset and running:
             frame += 1
             if ghost1: ghost1.update(frame, doors, cannons, player.rect) #note, update doesn't draw the ghost, that is further down
@@ -526,10 +606,10 @@ def main():
                     reset = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
+                        play_music(WARP_MUSIC_PATH)
+                        warped_once = True
+                        trigger_rewind = True
                         reset = True
-                        replay_reverse(screen, history, all_drawables, camera)
-                        save_menu(screen, history, saved_slots)
-                        history = None
                         continue
                     if event.key == pygame.K_e:
                         # Interact with Doors
@@ -541,9 +621,20 @@ def main():
                         if interacted_cannon_index is not None:
                             history["cannons"][frame] = interacted_cannon_index
                     
-
+            if trigger_rewind:
+                active_ghosts = [g for g in [ghost1, ghost2] if g is not None]
+                replay_reverse(screen, history, all_drawables, camera, player, active_ghosts)
+                save_menu(screen, history, saved_slots)
+                history = None
+                continue
 
             # --- UPDATE ---
+            if not pygame.mixer.music.get_busy():
+                if warped_once:
+                    loop_music(INTENSE_MUSIC_PATH)
+                else:
+                    loop_music(NORMAL_MUSIC_PATH)
+
             player.move(buttons)
             camera.update(player)
             # print(player.rect.center)
@@ -593,6 +684,7 @@ def main():
 
             # --- DRAW ---
             screen.fill(BG_COLOR)
+            drawtiles(screen, player.rect, camera)
             # Draw everything in order
             all_drawables = walls + waters + doors + buttons + gates + enemies + cannons
             if goal:
@@ -603,7 +695,7 @@ def main():
             
             if ghost1: ghost1.draw(screen, camera)
             if ghost2: ghost2.draw(screen, camera)
-            player.draw(screen, camera)
+            history["animations"][frame] = player.draw(screen, camera)
             screen_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
             if ghost1 and not ghost1.disabled:
                 ghost1_screen_pos = camera.apply(ghost1.rect)
