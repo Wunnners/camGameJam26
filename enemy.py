@@ -80,6 +80,7 @@ class Grunt(Enemy):
         self.health.take_damage(amount)
     
     def update(self, player, obstacles):
+        return
         dx = player.rect.centerx - self.rect.centerx
         dy = player.rect.centery - self.rect.centery
         dist = math.hypot(dx, dy)
@@ -88,7 +89,7 @@ class Grunt(Enemy):
             vx = (dx / dist) * self.speed
             vy = (dy / dist) * self.speed
             
-            move_with_collision(self.rect, vx, vy, obstacles)
+            # move_with_collision(self.rect, vx, vy, obstacles)
 
         if self.rect.colliderect(player.rect):
             current_time = pygame.time.get_ticks()

@@ -17,6 +17,7 @@ bruh = {
     'J': 5,
     'K': 6,
     'L': 7,
+    'H': 0,
 }
 
 class GateButton:

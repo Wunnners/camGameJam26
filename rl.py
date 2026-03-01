@@ -22,7 +22,6 @@ class Player:
 class WorldEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 60}
     
-    window_size = 800
     player_speed = 1
 
     def __init__(self, n_agents=1, render_mode="human"):
@@ -33,7 +32,9 @@ class WorldEnv(gym.Env):
         # ===== Environment Parameters =====
         self.n_players = n_agents + 1
         self.arena_size = 10.0
-        self.scale = self.window_size // (self.arena_size * 2)
+        # self.scale = self.window_size // (self.arena_size * 2)
+        self.scale = 50
+        self.window_size = self.scale * self.arena_size
         self.max_health = 15
         self.attack_range = 1.8
         self.attack_angle = np.pi / 3
@@ -108,6 +109,10 @@ class WorldEnv(gym.Env):
         self.p: list[Player] = [Player() for _ in range(self.n_players)]
         self.t = 0
         return (self._get_obs(0), {}), (self._get_obs(1), {})
+
+    def set_pos(self, poss):
+        for i, pos in enumerate(poss):
+            self.p[i].pos = pos
 
     def _get_obs(self, idx=0):
         opidx = 0 if idx >= 1 else idx^1
@@ -189,7 +194,7 @@ class WorldEnv(gym.Env):
 
         self.p[idx].pos += self.p[idx].vel
         # Clamp to arena
-        self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size, self.arena_size)
+        self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size+1, -1)
 
         # ===== Player Attack =====
         
