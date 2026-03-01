@@ -19,7 +19,7 @@ def replay_reverse(screen, history, all_drawables, camera):
 
     i = 0
     while i < len(loc_frames):
-        if i % 10 == 0:
+        if i % 5 == 0:
             REPLAY_SPEED += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -52,7 +52,7 @@ def replay_reverse(screen, history, all_drawables, camera):
         screen.blit(text, (20, 20))
 
         pygame.display.flip()
-        clock.tick(FPS)
+        clock.tick(0.5 * FPS)
         i += REPLAY_SPEED
 
 def save_menu(screen, history, saved_slots):
