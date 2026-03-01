@@ -52,21 +52,21 @@ class GateButton:
         surface.blit(pygame.transform.scale(img, (draw_rect.width, draw_rect.height)), draw_rect)
         # surface.blit(img, (draw_rect.x, draw_rect.y))
         # pygame.draw.rect(surface, color, draw_rect)
-        pygame.draw.rect(surface, (50, 50, 50), draw_rect, 2) # Dark border
+        pygame.draw.rect(surface, color, draw_rect, 2) # Dark border
 
         # 3. Draw ID Text (Centered)
         # self.text_rect.center = draw_rect.center
         # surface.blit(self.text_surf, self.text_rect)
 
         # 4. Optional: Draw Timer Bar if active
-        if active:
-            time_passed = pygame.time.get_ticks() - self.pressed_timer
-            # Calculate width based on remaining time (0.0 to 1.0)
-            ratio = 1.0 - (time_passed / self.duration)
-            bar_width = int(self.rect.width * ratio)
-            # Draw a small yellow bar at the bottom of the button
-            bar_rect = pygame.Rect(draw_rect.left, draw_rect.bottom - 5, bar_width, 5)
-            pygame.draw.rect(surface, (255, 255, 0), bar_rect)
+        # if active:
+        #     time_passed = pygame.time.get_ticks() - self.pressed_timer
+        #     # Calculate width based on remaining time (0.0 to 1.0)
+        #     ratio = 1.0 - (time_passed / self.duration)
+        #     bar_width = int(self.rect.width * ratio)
+        #     # Draw a small yellow bar at the bottom of the button
+        #     bar_rect = pygame.Rect(draw_rect.left, draw_rect.bottom - 5, bar_width, 5)
+        #     pygame.draw.rect(surface, (255, 255, 0), bar_rect)
 
 class Gate:
     def __init__(self, x, y, buttons, gate_id: str):
@@ -116,3 +116,6 @@ class Gate:
 
         img = self.a[self.is_open].get_image()
         surface.blit(pygame.transform.scale(img, (draw_rect.width, draw_rect.height)), draw_rect)
+
+        color = (0, 200, 0) if self.is_open else (150, 0, 0)
+        pygame.draw.rect(surface, color, draw_rect, 2) # Dark border
