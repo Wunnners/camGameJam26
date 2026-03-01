@@ -285,8 +285,10 @@ class Player:
         # surface.blit(img, (0, 0))
         pp = img.get_size()
         # print(pp)
-        surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
-        # surface.blit(img, (bruh.x, bruh.y))
+        # surface.blit(img, (bruh.x - pp[0] / 4, bruh.y - pp[1] / 2))
+        surface.blit(img, (bruh.x - pp[0] / 4 - 5, bruh.y - pp[1] / 2 - 20))
+        # print(bruh, pp)
+        # surface.blit(pygame.transform.scale(img, bruh.size), (bruh.x, bruh.y))
         # surface.blit(img, (bruh.x - bruh.w, bruh.y - bruh.h))
         # pygame.dr
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
