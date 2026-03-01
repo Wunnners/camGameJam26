@@ -1,5 +1,5 @@
 import pygame
-from config import *
+# from config import *
 
 class Spritesheet:
     def __init__(self, file, image_tilesize):
