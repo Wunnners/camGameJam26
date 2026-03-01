@@ -31,7 +31,7 @@ def export_grid(grid_data):
     with open("map_export.txt", "w") as f:
         for line in level_strings:
             f.write(f'"{line}",\n')
-    print("Level exported to map_export.txt!")
+    print("Level exported to map_export1.txt!")
     return level_strings
 
 # --- Main Loop ---
@@ -45,9 +45,9 @@ while running:
         
         # Keyboard Selection
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_1: current_char = "W" # Wall
-            if event.key == pygame.K_2: current_char = "." # Erase
-            if event.key == pygame.K_3: current_char = "D" # Door
+            if event.key == pygame.K_W: current_char = "W" # Wall
+            if event.key == pygame.K_E: current_char = "." # Erase
+            if event.key == pygame.K_X: current_char = "D" # Door
             if event.key == pygame.K_4: current_char = "T" # Trap
             if event.key == pygame.K_s:
                 export_grid(grid)

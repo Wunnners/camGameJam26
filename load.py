@@ -5,17 +5,15 @@ from stable_baselines3 import PPO
 # a.load("model1")
 
 env = WorldEnv()
-a = PPO.load("modelBEST", env=env)
+a = PPO.load("modelSELF24/final", env=env)
 
-
-env = WorldEnv(render_mode="human")
 obs, _ = env.reset()
 
-for _ in range(1000):
+for _ in range(10000):
     # action = a.predict(obs, None, None, True)[0]
-    action = a.predict(obs, None, None, False)[0]
-    print(env.p1_vel)
-    obs, reward, terminated, truncated, _ = env.step(action)
+    action0 = a.predict(env._get_obs(0), deterministic=False)[0]
+    action1 = a.predict(env._get_obs(1), deterministic=False)[0]
+    obs, reward, terminated, truncated, _ = env.step(0, action0, action1)
     if terminated or truncated:
         obs, _ = env.reset()
     env.render()
