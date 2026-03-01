@@ -156,6 +156,9 @@ class Player:
     def take_damage(self, amount):
         self.health.take_damage(amount)
         self.flash_timer = pygame.time.get_ticks()
+
+    # def get_animation_state(self):
+    #     return (self.orit, self.idle)
     
     def handle_door_interact(self):
         """Checks for nearby doors and toggles them. Returns list of toggled door indices."""
@@ -258,6 +261,7 @@ class Player:
         # pygame.dr
         # pygame.draw.rect(surface, color, camera.apply(self.rect))
         self.health.draw(surface, camera)
+        return (self.orit, self.idle)
 
 # --- MAIN ---
 def main():
