@@ -414,7 +414,9 @@ def main():
         for r, row in enumerate(LEVEL_MAP):
             for c, char in enumerate(row):
                 x, y = c * TILE_SIZE, r * TILE_SIZE
-                if char.isdigit():
+                if char == '.':
+                    continue
+                elif char.isdigit():
                     if char not in room_info:
                         room_info[char] = []
                     room_info[char].append((x, y))
