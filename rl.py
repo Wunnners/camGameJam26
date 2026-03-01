@@ -149,6 +149,8 @@ class WorldEnv(gym.Env):
         return np.arctan2(dy, dx)
 
     def update_player(self, idx, action):
+        if (self.p[idx].health <= 0): return
+
         opidx = 0 if idx >= 1 else idx ^ 1
         ridx = 0 if idx == 0 else 1
 
@@ -194,7 +196,8 @@ class WorldEnv(gym.Env):
 
         self.p[idx].pos += self.p[idx].vel
         # Clamp to arena
-        self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size+1.5, -1.5)
+        self.p[idx].pos[0] = np.clip(self.p[idx].pos[0], -self.arena_size, -1)
+        self.p[idx].pos[1] = np.clip(self.p[idx].pos[1], -self.arena_size, -1)
 
         # ===== Player Attack =====
         
@@ -279,6 +282,7 @@ class WorldEnv(gym.Env):
 
         for i in range(self.n_players):
             for j in range(i + 1, self.n_players):
+                if (self.p[i].health <= 0 or self.p[j].health <= 0): continue
                 self.resolve_collision(self.p[i], self.p[j])
         self.t += 1
         truncated = False

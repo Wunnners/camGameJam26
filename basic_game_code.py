@@ -357,7 +357,7 @@ class Player:
     
 
     def draw(self, surface, camera):
-        if self.mounted_cannon: return 
+        if self.mounted_cannon: return (2, True)
         now = pygame.time.get_ticks()
         color = (255, 0, 0) if now - self.flash_timer < 150 else (50, 150, 255)
         if self.orit == 0:
@@ -385,19 +385,22 @@ class Player:
 
 envs = {
     1: WorldEnv(4),
-    5: WorldEnv(2),
+    4: WorldEnv(1)
+    # 5: WorldEnv(2),
     # 6: WorldEnv(2),
     # 7: WorldEnv(1),
 }
 room_tl = {
     1: (17, 15),
-    5: (29, 31)
+    4: (16, 31),
+    # 5: (29, 31),
 }
 for rid in room_tl:
     room_tl[rid] = (room_tl[rid][0] * TILE_SIZE, room_tl[rid][1] * TILE_SIZE)
 env_players = {
     1: [],
-    5: []
+    4: []
+    # 5: [],
 }
 model = PPO.load("ai/modelSELF28/final", env=envs[1])
 
@@ -447,8 +450,12 @@ def update_env(env: WorldEnv, rid, left_clicked):
 def draw_ai(screen, camera, rid, idx, player_color):
         env = envs[rid]
         off = room_tl[rid]
+        if env.p[idx].health <= 0:
+            return
+
         spos1 = env.to_screen(env.p[idx].pos)
         spos = (off[0]+camera.offset.x+spos1[0], off[1]+camera.offset.y+spos1[1])
+        
 
         # # draw player
         # pygame.draw.circle(screen, player_color, spos, env.p[idx].radius * env.scale)
@@ -472,8 +479,8 @@ def draw_ai(screen, camera, rid, idx, player_color):
             pygame.draw.arc(screen, player_color, shield_rect, -(angle + env.shield_angle), -(angle - env.shield_angle), 5)
 
         # # Health bar
-        # hpbar_top = 20 if idx == 0 else 40
-        # pygame.draw.rect(screen, player_color, (20, hpbar_top, 20 * env.p[idx].health, 10))
+        hpbar_top = 20 + 20 * idx
+        pygame.draw.rect(screen, player_color, (20, hpbar_top, 20 * env.p[idx].health, 10))
 
 # --- MAIN ---
 def main():
@@ -520,7 +527,8 @@ def main():
                     if char not in room_info:
                         room_info[char] = []
                     room_info[char].append((x, y))
-                    walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
+                    if ord(char)-ord('0') not in room_tl:
+                        walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "W": walls.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WALL_COLOR))
                 elif char == "B": waters.append(Boundary(x, y, TILE_SIZE, TILE_SIZE, WATER_COLOR))
                 elif char == "G": enemies.append(Grunt(x, y))
