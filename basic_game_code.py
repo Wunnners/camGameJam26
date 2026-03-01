@@ -314,7 +314,9 @@ def main():
                 if e.health.is_dead: enemies.remove(e)
 
             if goal and player.rect.colliderect(goal.rect):
-                running = win_menu(screen)
+                win_menu(screen)
+                history = None
+                running = False
                 reset = True
                 continue
 
