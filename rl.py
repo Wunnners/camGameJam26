@@ -25,12 +25,13 @@ class WorldEnv(gym.Env):
     window_size = 800
     player_speed = 1
 
-    def __init__(self, render_mode="human"):
+    def __init__(self, n_agents=1, render_mode="human"):
         super().__init__()
         self.render_mode = render_mode
         self.window = None
 
         # ===== Environment Parameters =====
+        self.n_players = n_agents + 1
         self.arena_size = 10.0
         self.scale = self.window_size // (self.arena_size * 2)
         self.max_health = 15
@@ -42,7 +43,7 @@ class WorldEnv(gym.Env):
         self.shield_cd = 0.5
         self.shield_broken_cd = 2.0
         self.shield_atk_cd = 0.1
-        self.shield_start_cd = 0.0
+        self.shield_start_cd = 0.5
         self.dt = 1 / 60
 
         self.accel = 0.6
@@ -104,13 +105,14 @@ class WorldEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.p: list[Player] = [Player() for _ in range(2)]
+        self.p: list[Player] = [Player() for _ in range(self.n_players)]
         self.t = 0
         return (self._get_obs(0), {}), (self._get_obs(1), {})
 
     def _get_obs(self, idx=0):
-        dx = self.p[idx^1].pos[0] - self.p[idx].pos[0]
-        dy = self.p[idx^1].pos[1] - self.p[idx].pos[1]
+        opidx = 0 if idx >= 1 else idx^1
+        dx = self.p[opidx].pos[0] - self.p[idx].pos[0]
+        dy = self.p[opidx].pos[1] - self.p[idx].pos[1]
 
         return np.array([
             dx,
@@ -120,27 +122,31 @@ class WorldEnv(gym.Env):
             np.cos(self._angle_diff(self.angle_to_enemy(idx), self.p[idx].angle)),
             np.sin(self._angle_diff(self.angle_to_enemy(idx), self.p[idx].angle)),
             self.p[idx].angle_vel,
-            np.cos(self.p[idx^1].angle),
-            np.sin(self.p[idx^1].angle),
-            self.p[idx^1].angle_vel,
+            np.cos(self.p[opidx].angle),
+            np.sin(self.p[opidx].angle),
+            self.p[opidx].angle_vel,
             self.p[idx].atk_timer,
-            self.p[idx^1].atk_timer,
+            self.p[opidx].atk_timer,
             self.p[idx].health,
-            self.p[idx^1].health,
+            self.p[opidx].health,
             self.p[idx].shield_timer,
-            self.p[idx^1].shield_timer,
+            self.p[opidx].shield_timer,
             self.p[idx].shield_start_timer,
-            self.p[idx^1].shield_start_timer,
+            self.p[opidx].shield_start_timer,
             float(self.p[idx].shield),
-            float(self.p[idx^1].shield)
+            float(self.p[opidx].shield)
         ], dtype=np.float32)
     
     def angle_to_enemy(self, idx):
-        dx = self.p[idx^1].pos[0] - self.p[idx].pos[0]
-        dy = self.p[idx^1].pos[1] - self.p[idx].pos[1]
+        opidx = 0 if idx >= 1 else idx^1
+        dx = self.p[opidx].pos[0] - self.p[idx].pos[0]
+        dy = self.p[opidx].pos[1] - self.p[idx].pos[1]
         return np.arctan2(dy, dx)
 
     def update_player(self, idx, action):
+        opidx = 0 if idx >= 1 else idx ^ 1
+        ridx = 0 if idx == 0 else 1
+
         # move_x, move_y = action["move"]
         # ang_accel = action["rotate"][0]
         # attack = action["combat"] == 1
@@ -186,56 +192,64 @@ class WorldEnv(gym.Env):
         self.p[idx].pos = np.clip(self.p[idx].pos, -self.arena_size, self.arena_size)
 
         # ===== Player Attack =====
-        dx = self.p[idx^1].pos[0] - self.p[idx].pos[0]
-        dy = self.p[idx^1].pos[1] - self.p[idx].pos[1]
-        distance = np.sqrt(dx**2 + dy**2)
-        angle_to_enemy = np.arctan2(dy, dx)
-        angle_from_enemy = np.arctan2(-dy, -dx)
-
-        angle_diff = self._angle_diff(self.p[idx].angle, angle_to_enemy)
-
+        
         # self.p[idx].angle_vel += -np.clip(angle_diff, -self.max_ang_accel, self.max_ang_accel)*0.5 + np.random.uniform(-0.15, 0.15)
         # self.p[idx].angle_vel *= 0.81
         # self.p[idx].angle += self.p[idx].angle_vel
 
+        hit = False
+        ops = [opidx] if idx != 0 else range(1, self.n_players)
+        for op in ops:
+            dx = self.p[op].pos[0] - self.p[idx].pos[0]
+            dy = self.p[op].pos[1] - self.p[idx].pos[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            angle_to_enemy = np.arctan2(dy, dx)
+            angle_from_enemy = np.arctan2(-dy, -dx)
+
+            angle_diff = self._angle_diff(self.p[idx].angle, angle_to_enemy)
+
+            if attack and self.p[idx].atk_timer == 0 and self.p[idx].shield_start_timer == 0:
+                miss = True
+                self.p[idx].attack = True
+                if distance < self.attack_range:
+                    enemy_angle_diff = np.abs(self._angle_diff(self.p[op].angle, angle_from_enemy))
+                    if abs(angle_diff) < self.attack_angle:
+                        kb = 0.2 if self.p[op].shield else 0.4
+                        if not (self.p[op].shield and abs(enemy_angle_diff) < self.shield_angle):
+                            self.p[op].health -= 1
+                            reward[ridx] += 0.1
+                            if idx != 0:
+                                reward[op] -= 0.1
+                        else:
+                            reward[ridx] += 0.05
+                            self.p[op].shield_timer = self.shield_broken_cd
+                            self.p[op].atk_timer = self.shield_atk_cd
+                            self.p[op].shield_start_timer = 0
+                            self.p[op].shield = False
+                        miss = False
+                        self.p[op].vel += np.array([dx, dy]) / distance * kb
+                        hit = True
+                        break
+                if miss:
+                    reward[ridx] -= 0.03
         if attack and self.p[idx].atk_timer == 0 and self.p[idx].shield_start_timer == 0:
-            miss = True
-            self.p[idx].attack = True
-            if distance < self.attack_range:
-                enemy_angle_diff = np.abs(self._angle_diff(self.p[idx^1].angle, angle_from_enemy))
-                if abs(angle_diff) < self.attack_angle:
-                    kb = 0.2 if self.p[idx^1].shield else 0.4
-                    if not (self.p[idx^1].shield and abs(enemy_angle_diff) < self.shield_angle):
-                        self.p[idx^1].health -= 1
-                        reward[idx] += 0.1
-                        reward[idx^1] -= 0.1
-                    else:
-                        reward[idx] += 0.05
-                        self.p[idx^1].shield_timer = self.shield_broken_cd
-                        self.p[idx^1].atk_timer = self.shield_atk_cd
-                        self.p[idx^1].shield_start_timer = 0
-                        self.p[idx^1].shield = False
-                    miss = False
-                    self.p[idx^1].vel += np.array([dx, dy]) / distance * kb
-            if miss:
-                reward[idx] -= 0.03
             self.p[idx].atk_timer = self.atk_cd
             self.p[idx].shield_timer = self.shield_cd
         
         # if distance < self.attack_range and attack:
-        #     if self.p[idx^1].shield:
-        #         reward[idx] += 0.005
+        #     if self.p[opidx].shield:
+        #         reward[ridx] += 0.005
         #     else:
-        #         reward[idx] += 0.05
+        #         reward[ridx] += 0.05
         # elif attack and self.p[idx].atk_timer != 0:
-        #     reward[idx] -= 0.01
+        #     reward[ridx] -= 0.01
         
         # if shield and self.p[idx].shield_timer != 0:
-        #     reward[idx] -= 0.01
+        #     reward[ridx] -= 0.01
 
         # ===== Distance & Rotation Penalty =====
-        reward[idx] -= 0.001 * distance
-        reward[idx] -= 0.01 * abs(angle_diff)
+        reward[ridx] -= 0.001 * distance
+        reward[ridx] -= 0.01 * abs(angle_diff)
 
         # ===== Cooldowns =====
         self.p[idx].atk_timer = max(0.0, self.p[idx].atk_timer - self.dt)
@@ -243,25 +257,30 @@ class WorldEnv(gym.Env):
         self.p[idx].shield_start_timer = max(0.0, self.p[idx].shield_start_timer - self.dt)
 
         # ===== Win/Loss =====
-        if self.p[idx^1].health <= 0:
-            reward[idx] += 1.0
-            reward[idx^1] -= 1.0
+        if self.p[opidx].health <= 0:
+            reward[ridx] += 1.0
+            reward[opidx] -= 1.0
             terminated = True
 
         return self._get_obs(idx), reward, terminated, truncated, {}
 
-    def step(self, idx, action0, action1):
-        obs0, reward0, terminated0, truncated, info = self.update_player(0, action0)
-        obs1, reward1, terminated1, truncated, info  = self.update_player(1, action1)
-        obs = [obs0, obs1]
-        reward = [reward0[0] + reward1[0], reward0[1] + reward1[1]]
+    def step(self, idx, action0, actions):
+        res = [None for _ in range(self.n_players)]
+        # obs1, reward1, terminated1, truncated, info  = self.update_player(1, actions[0])
+        res[0] = self.update_player(0, action0)
+        for i in range(1, self.n_players):
+            res[i - 1] = self.update_player(i, actions[i - 1])
+        reward = res[0][0] + res[idx][1][0]
 
-        self.resolve_collision(self.p[0], self.p[1])
+        for i in range(self.n_players):
+            for j in range(i + 1, self.n_players):
+                self.resolve_collision(self.p[i], self.p[j])
         self.t += 1
+        truncated = False
         if self.t > 500:
             truncated = True
-        terminated = terminated0 or terminated1
-        return obs, reward, terminated, truncated, info
+        terminated = res[0][2] or res[idx][2]
+        return res[idx][0], reward, terminated, truncated, res[0][4]
 
     def resolve_collision(self, p1: Player, p2: Player):
         dx = p2.pos[0] - p1.pos[0]
@@ -327,9 +346,9 @@ class WorldEnv(gym.Env):
                 dx += self.player_speed
             
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            center_x, center_y = self.to_screen(self.p[1].pos)
+            center_x, center_y = self.to_screen(self.p[0].pos)
             angle = np.arctan2(mouse_y - center_y, mouse_x - center_x)
-            angle_diff = self._angle_diff(angle, self.p[1].angle)
+            angle_diff = self._angle_diff(angle, self.p[0].angle)
             angle_diff = np.clip(angle_diff, -1.0, 1.0)
 
 
@@ -345,7 +364,8 @@ class WorldEnv(gym.Env):
             self.player_action = [dx, dy, angle_diff, combat]
 
         self.draw(0, (50, 150, 255)) # blue
-        self.draw(1, (255, 80, 80)) # red
+        for i in range(1, self.n_players):
+            self.draw(i, (255, 80, 80)) # red
 
         pygame.display.flip()
         self.clock.tick(60)
