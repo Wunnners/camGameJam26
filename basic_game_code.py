@@ -3,6 +3,7 @@ import math
 from game_config import *
 from reset_dialogue import *
 from win_dialogue import win_menu
+from music_select import play_music, loop_music
 from gate import *
 from ss import *
 from animation import *
@@ -10,6 +11,10 @@ from animation import *
 # from enemy import *
 from enemy_basic import *
 from cannon import *
+
+WARP_MUSIC_PATH = "assets/warp.wav"
+NORMAL_MUSIC_PATH = "assets/normal.wav"
+INTENSE_MUSIC_PATH = "assets/intense.wav"
 
 def move_with_collision(rect, dx, dy, obstacles):
     # Handle X movement
@@ -303,8 +308,14 @@ def main():
     running = True
     saved_slots = [None, None]
     history = None
+    warped_once = False
 
     while running:
+        if warped_once:
+            loop_music(INTENSE_MUSIC_PATH)
+        else:
+            loop_music(NORMAL_MUSIC_PATH)
+
         if history:
             save_menu(screen,history,saved_slots)
         history = {"doors": {}, # doors: frame -> list of door indices toggled
@@ -373,6 +384,8 @@ def main():
                     reset = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
+                        play_music(WARP_MUSIC_PATH)
+                        warped_once = True
                         reset = True
                         replay_reverse(screen, history, all_drawables, camera)
                         save_menu(screen, history, saved_slots)
@@ -391,6 +404,12 @@ def main():
 
 
             # --- UPDATE ---
+            if not pygame.mixer.music.get_busy():
+                if warped_once:
+                    loop_music(INTENSE_MUSIC_PATH)
+                else:
+                    loop_music(NORMAL_MUSIC_PATH)
+
             player.move(buttons)
             camera.update(player)
 

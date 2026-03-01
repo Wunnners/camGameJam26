@@ -7,7 +7,7 @@ import sys
 import pygame
 
 from game_config import SCREEN_HEIGHT, SCREEN_WIDTH
-from music_select import play_menu_music_once
+from music_select import *
 
 
 MENU_BG = (22, 24, 31)
@@ -236,7 +236,7 @@ def main():
     item_font = pygame.font.SysFont(None, 36)
     small_font = pygame.font.SysFont(None, 28)
     home_background = load_menu_background()
-    play_menu_music_once(MENU_MUSIC_PATH)
+    play_music(MENU_MUSIC_PATH)
 
     options = discover_maps()
     selected_index = 0
